@@ -1,11 +1,23 @@
 
   # 亲子游学活动管理
 
-  This is a code bundle for 亲子游学活动管理. The original project is available at https://www.figma.com/design/tkaJWfz6RMWtB9JqWneh9c/%E4%BA%B2%E5%AD%90%E6%B8%B8%E5%AD%A6%E6%B4%BB%E5%8A%A8%E7%AE%A1%E7%90%86.
+项目代码来源：https://github.com/dajidali9527/Liangxiaogyunfang
 
-  ## Running the code
+## 初始化
 
-  Run `npm i` to install the dependencies.
+使用国内镜像安装依赖：
 
-  Run `npm run dev` to start the development server.
+```bash
+npm install --registry=https://registry.npmmirror.com
+```
+
+## 运行
+
+启动开发服务器：
+
+```bash
+npm run dev -- --host 0.0.0.0
+```
+
+默认访问：http://localhost:5173/
   
