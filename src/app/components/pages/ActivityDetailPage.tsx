@@ -2,21 +2,24 @@ import { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { StatusBadge } from '../shared/StatusBadge';
 import { Header } from '../shared/Header';
-import { ArrowLeft, MapPin, Calendar, Users, Clock, DollarSign, ExternalLink, CheckCircle } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, Users, Clock, ExternalLink, CheckCircle, ChevronLeft, ChevronRight, Play } from 'lucide-react';
 import { EnrollData } from '../../context/AppContext';
 
 export function ActivityDetailPage({ activityId }: { activityId: string }) {
   const { activities, enrollments, currentUser, navigate, enroll } = useApp();
   const activity = activities.find(a => a.id === activityId);
   const [enrolling, setEnrolling] = useState(false);
+  const [agreed, setAgreed] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
   const [enrollForm, setEnrollForm] = useState<EnrollData>({
     adults: 1,
     children: 1,
-    contactName: currentUser?.name || '',
+    contactName: currentUser?.nickname || currentUser?.name || '',
     contactPhone: currentUser?.phone || '',
     note: '',
   });
-  const [enrollResult, setEnrollResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [enrollResult, setEnrollResult] = useState<{ success: boolean; message: string; autoCreated?: boolean; password?: string } | null>(null);
+  const [currentImage, setCurrentImage] = useState(0);
 
   if (!activity) {
     return (
@@ -30,29 +33,30 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
   const myEnrollment = currentUser
     ? enrollments.find(e => e.activityId === activityId && e.userId === currentUser.id && e.status !== '已取消' && e.status !== '已移除')
     : null;
-
   const canEnroll = activity.status === '报名中' && !myEnrollment;
   const isFull = activity.status === '已满员';
   const isEnded = activity.status === '已结束' || activity.status === '已关闭';
   const enrollDeadlinePassed = new Date(activity.enrollDeadline) < new Date();
-  const totalAmount = activity.price * (enrollForm.adults + enrollForm.children * 0.5);
+
+  // 图片轮播
+  const allImages = [activity.featuredPoster || activity.imageUrl, ...activity.images.filter(img => img !== (activity.featuredPoster || activity.imageUrl))];
+  const prevImage = () => setCurrentImage(i => (i > 0 ? i - 1 : allImages.length - 1));
+  const nextImage = () => setCurrentImage(i => (i < allImages.length - 1 ? i + 1 : 0));
+
+  // 匿名报名：点击立即报名直接打开报名表单，不再强制登录
+  const handleEnrollClick = () => {
+    if (canEnroll) setEnrolling(true);
+  };
 
   const handleEnroll = () => {
-    if (!currentUser) {
-      navigate({ page: 'login', redirect: { page: 'activity-detail', id: activityId } });
-      return;
-    }
     const result = enroll(activityId, enrollForm);
     setEnrollResult(result);
     if (result.success) setEnrolling(false);
   };
 
-  const descLines = activity.description.split('\n');
-
   return (
     <div className="min-h-screen bg-background">
       <Header />
-
       <div className="max-w-2xl mx-auto pb-32">
         {/* Back */}
         <div className="px-4 pt-4">
@@ -64,12 +68,32 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
           </button>
         </div>
 
-        {/* Hero image */}
-        <div className="relative h-56 mt-3 overflow-hidden">
-          <img src={activity.imageUrl} alt={activity.name} className="w-full h-full object-cover" />
+        {/* Hero image / 海报轮播 */}
+        <div className="relative h-56 mt-3 overflow-hidden bg-muted">
+          <img src={allImages[currentImage]} alt={activity.name} className="w-full h-full object-cover transition-all duration-500" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+          {allImages.length > 1 && (
+            <>
+              <button onClick={prevImage} className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-white/40 transition-colors">
+                <ChevronLeft size={16} />
+              </button>
+              <button onClick={nextImage} className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-white/40 transition-colors">
+                <ChevronRight size={16} />
+              </button>
+              <div className="absolute bottom-14 left-1/2 -translate-x-1/2 flex gap-1.5">
+                {allImages.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setCurrentImage(i)}
+                    className={`w-2 h-2 rounded-full transition-all ${i === currentImage ? 'bg-white w-5' : 'bg-white/50'}`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
           <div className="absolute bottom-4 left-4 right-4">
             <div className="flex items-center gap-2 mb-2">
+              {activity.isFeatured && <span className="px-2 py-0.5 bg-primary text-white text-xs rounded-full font-medium">专题活动</span>}
               <StatusBadge status={activity.status} size="md" />
               {activity.tags.map(tag => (
                 <span key={tag} className="px-2 py-0.5 bg-white/20 backdrop-blur-sm text-white text-xs rounded-full">
@@ -125,40 +149,74 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
                 </div>
               </div>
             </div>
-            <div className="flex items-start gap-3">
-              <DollarSign size={16} className="text-accent mt-0.5 shrink-0" />
-              <div>
-                <div className="text-xs text-muted-foreground mb-0.5">活动费用</div>
-                <div className="text-sm font-semibold text-accent">¥{activity.price} / 人起</div>
-                <div className="text-xs text-muted-foreground mt-0.5">收款方：{activity.payee}</div>
-              </div>
-            </div>
           </div>
 
           {/* Description */}
           <div className="bg-card rounded-2xl p-4 border border-border">
             <h3 className="text-foreground mb-3">活动介绍</h3>
-            <div className="text-sm text-foreground/80 leading-relaxed space-y-1.5">
-              {descLines.map((line, i) => (
-                <p key={i} className={line.startsWith('•') ? 'pl-2' : ''}>
-                  {line || ' '}
-                </p>
-              ))}
+            <div className="space-y-4">
+              {activity.description.map((block, i) => {
+                if (block.type === 'image' && block.src) {
+                  return (
+                    <div key={i}>
+                      <img
+                        src={block.src}
+                        alt={block.caption || ''}
+                        className="w-full rounded-xl"
+                      />
+                      {block.caption && (
+                        <p className="text-xs text-muted-foreground text-center mt-1.5">{block.caption}</p>
+                      )}
+                    </div>
+                  );
+                }
+                const lines = (block.content || '').split('\n');
+                return (
+                  <div key={i} className="text-sm text-foreground/80 leading-relaxed space-y-1.5">
+                    {lines.map((line, j) => (
+                      <p key={j} className={line.startsWith('•') ? 'pl-2' : ''}>
+                        {line || '\u00A0'}
+                      </p>
+                    ))}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* Video link placeholder */}
-          <div className="bg-card rounded-2xl p-4 border border-border">
-            <h3 className="text-foreground mb-2">相关视频</h3>
-            <a
-              href="#"
-              className="flex items-center gap-2 text-primary text-sm hover:underline"
-              onClick={e => e.preventDefault()}
-            >
-              <ExternalLink size={14} />
-              查看活动回顾视频（B站）
-            </a>
-          </div>
+          {/* 视频介绍 */}
+          {activity.videoUrl && (
+            <div className="bg-card rounded-2xl p-4 border border-border">
+              <h3 className="text-foreground mb-2">视频介绍</h3>
+              {activity.videoUrl.includes('bilibili') || activity.videoUrl.includes('youtube') || activity.videoUrl.includes('v.qq') ? (
+                <iframe src={activity.videoUrl} className="w-full aspect-video rounded-xl" allowFullScreen title="活动视频" />
+              ) : (
+                <a
+                  href={activity.videoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-primary text-sm hover:underline"
+                >
+                  <Play size={14} /> 查看活动视频
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* 视频占位（无视频时） */}
+          {!activity.videoUrl && (
+            <div className="bg-card rounded-2xl p-4 border border-border">
+              <h3 className="text-foreground mb-2">相关视频</h3>
+              <a
+                href="#"
+                className="flex items-center gap-2 text-primary text-sm hover:underline"
+                onClick={e => e.preventDefault()}
+              >
+                <ExternalLink size={14} />
+                查看活动回顾视频（B站）
+              </a>
+            </div>
+          )}
         </div>
       </div>
 
@@ -166,34 +224,33 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-border px-4 py-3 z-30">
         <div className="max-w-2xl mx-auto">
           {enrollResult?.success && (
-            <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 rounded-xl px-4 py-3 mb-3 text-sm">
-              <CheckCircle size={16} />
-              {enrollResult.message}
-              <button className="ml-auto text-primary underline" onClick={() => navigate({ page: 'my-history' })}>
-                查看报名
-              </button>
+            <div className="bg-emerald-50 rounded-xl px-4 py-3 mb-3 text-sm">
+              <div className="flex items-center gap-2 text-emerald-600">
+                <CheckCircle size={16} />
+                {enrollResult.message}
+                <button className="ml-auto text-primary underline" onClick={() => navigate({ page: 'my-history' })}>
+                  查看报名
+                </button>
+              </div>
+              {enrollResult.autoCreated && enrollResult.password && (
+                <div className="mt-2 text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+                  已为您自动创建账号，手机号：{enrollForm.contactPhone}，默认密码：{enrollResult.password}，请妥善保管！
+                </div>
+              )}
             </div>
           )}
-
           {myEnrollment && (
             <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 rounded-xl px-4 py-3 mb-3 text-sm">
               <CheckCircle size={16} />
               您已报名此活动
-              <button className="ml-auto text-primary underline" onClick={() => navigate({ page: 'my-history' })}>
-                查看记录
+              <button className="ml-auto text-primary underline" onClick={() => navigate({ page: 'my-activity-detail', enrollmentId: myEnrollment.id })}>
+                查看详情
               </button>
             </div>
           )}
-
           {!enrollResult?.success && !myEnrollment && (
             <button
-              onClick={() => {
-                if (!currentUser) {
-                  navigate({ page: 'login', redirect: { page: 'activity-detail', id: activityId } });
-                  return;
-                }
-                if (canEnroll) setEnrolling(true);
-              }}
+              onClick={handleEnrollClick}
               disabled={!canEnroll || isEnded || isFull || enrollDeadlinePassed}
               className={`w-full py-3.5 rounded-xl font-medium text-sm transition-all ${
                 canEnroll && !isEnded && !enrollDeadlinePassed
@@ -207,7 +264,7 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
         </div>
       </div>
 
-      {/* Enroll dialog */}
+      {/* Enroll dialog - 匿名报名，不强制登录 */}
       {enrolling && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEnrolling(false)} />
@@ -215,25 +272,27 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
             <div className="p-6">
               <h2 className="text-foreground mb-1">确认报名</h2>
               <p className="text-muted-foreground text-sm mb-5">{activity.name}</p>
-
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm text-foreground mb-1.5">联系人姓名</label>
+                  <label className="block text-sm text-foreground mb-1.5">联系人昵称（可选）</label>
                   <input
                     className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                     value={enrollForm.contactName}
                     onChange={e => setEnrollForm(p => ({ ...p, contactName: e.target.value }))}
-                    placeholder="请输入联系人姓名"
+                    placeholder="请输入联系人昵称"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-foreground mb-1.5">联系手机</label>
+                  <label className="block text-sm text-foreground mb-1.5">联系手机 *</label>
                   <input
                     className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                     value={enrollForm.contactPhone}
                     onChange={e => setEnrollForm(p => ({ ...p, contactPhone: e.target.value }))}
                     placeholder="请输入手机号"
                   />
+                  {!currentUser && (
+                    <p className="text-xs text-muted-foreground mt-1">未注册将自动创建账号，密码为手机号后6位，可登录自行修改</p>
+                  )}
                 </div>
                 <div className="flex gap-3">
                   <div className="flex-1">
@@ -275,17 +334,27 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
                     placeholder="特殊需求、过敏信息等"
                   />
                 </div>
-
                 {enrollResult && !enrollResult.success && (
                   <p className="text-destructive text-sm bg-red-50 px-3 py-2 rounded-lg">{enrollResult.message}</p>
                 )}
-
-                <div className="bg-secondary rounded-xl p-3 flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">预计费用</span>
-                  <span className="font-bold text-accent">¥{totalAmount.toFixed(0)}</span>
+                <div className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    checked={agreed}
+                    onChange={e => setAgreed(e.target.checked)}
+                    className="mt-1 accent-primary"
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    我已阅读并同意
+                    <button
+                      type="button"
+                      onClick={() => setShowPrivacy(true)}
+                      className="text-primary underline hover:text-primary/80"
+                    >
+                      个人信息使用说明
+                    </button>
+                  </span>
                 </div>
-                <p className="text-xs text-muted-foreground">儿童半价，费用请在活动当天向管理员确认</p>
-
                 <div className="flex gap-3 pt-2">
                   <button
                     onClick={() => setEnrolling(false)}
@@ -295,13 +364,37 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
                   </button>
                   <button
                     onClick={handleEnroll}
-                    className="flex-1 py-3 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"
+                    disabled={!enrollForm.contactPhone || !agreed}
+                    className={`flex-1 py-3 rounded-xl text-sm font-medium transition-colors ${
+                      enrollForm.contactPhone && agreed
+                        ? 'bg-primary text-white hover:bg-primary/90'
+                        : 'bg-muted text-muted-foreground cursor-not-allowed'
+                    }`}
                   >
                     确认报名
                   </button>
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 个人信息使用说明弹窗 */}
+      {showPrivacy && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowPrivacy(false)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm mx-4 p-6 shadow-2xl">
+            <h3 className="text-foreground font-semibold mb-3">个人信息使用说明</h3>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              本次报名仅收集昵称（可选）、手机号、邮箱（可选），仅用于活动通知与签到，不会向任何第三方共享。
+            </p>
+            <button
+              onClick={() => setShowPrivacy(false)}
+              className="mt-5 w-full py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              我知道了
+            </button>
           </div>
         </div>
       )}

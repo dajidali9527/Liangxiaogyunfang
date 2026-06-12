@@ -4,6 +4,8 @@ import { HomePage } from './components/pages/HomePage';
 import { ActivityDetailPage } from './components/pages/ActivityDetailPage';
 import { AuthPage } from './components/pages/AuthPage';
 import { MyHistoryPage } from './components/pages/MyHistoryPage';
+import { RegisterConfirmPage } from './components/pages/RegisterConfirmPage';
+import { MyActivityDetailPage } from './components/pages/MyActivityDetailPage';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { AdminActivitiesPage } from './components/admin/AdminActivitiesPage';
 import { AdminRosterPage } from './components/admin/AdminRosterPage';
@@ -41,6 +43,10 @@ function Router() {
       return <AuthPage mode="register" />;
     case 'my-history':
       return <MyHistoryPage />;
+    case 'my-activity-detail':
+      return <MyActivityDetailPage enrollmentId={route.enrollmentId} />;
+    case 'register-confirm':
+      return <RegisterConfirmPage activityId={route.activityId} enrollData={route.enrollData} />;
     case 'admin-dashboard':
       return <AdminGuard><AdminDashboard /></AdminGuard>;
     case 'admin-activities':

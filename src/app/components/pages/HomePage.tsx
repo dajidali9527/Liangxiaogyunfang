@@ -18,7 +18,6 @@ function ActivityCard({ activity }: { activity: Activity }) {
   const isEnded = activity.status === '已结束' || activity.status === '已关闭';
   const isDraft = activity.status === '草稿';
   const pct = Math.round((activity.enrolled / activity.capacity) * 100);
-
   return (
     <div
       className="bg-card rounded-2xl overflow-hidden shadow-sm border border-border hover:shadow-md transition-all cursor-pointer group"
@@ -44,10 +43,8 @@ function ActivityCard({ activity }: { activity: Activity }) {
           </div>
         )}
       </div>
-
       <div className="p-4">
         <h3 className="font-semibold text-foreground mb-3 leading-snug">{activity.name}</h3>
-
         <div className="space-y-1.5 mb-4">
           <div className="flex items-center gap-2 text-muted-foreground text-sm">
             <Calendar size={13} className="shrink-0" />
@@ -68,11 +65,9 @@ function ActivityCard({ activity }: { activity: Activity }) {
             </div>
           </div>
         </div>
-
         <div className="flex items-center justify-between">
           <div>
-            <span className="text-accent font-bold">¥{activity.price}</span>
-            <span className="text-muted-foreground text-xs ml-1">/ 人起</span>
+            <span className="text-muted-foreground text-xs">{activity.enrolled}/{activity.capacity} 人</span>
           </div>
           <div className="flex items-center gap-1 text-primary text-sm font-medium">
             查看详情 <ChevronRight size={14} />
@@ -83,71 +78,121 @@ function ActivityCard({ activity }: { activity: Activity }) {
   );
 }
 
+function FeaturedActivitySection({ activity }: { activity: Activity }) {
+  const { navigate, currentUser, enrollments } = useApp();
+  const allImages = [activity.featuredPoster || activity.imageUrl, ...activity.images.filter(img => img !== (activity.featuredPoster || activity.imageUrl))];
+  const enrollDeadlinePassed = new Date(activity.enrollDeadline) < new Date();
+  const myEnrollment = currentUser
+    ? enrollments.find(e => e.activityId === activity.id && e.userId === currentUser.id && e.status !== '已取消' && e.status !== '已移除')
+    : null;
+  const canEnroll = activity.status === '报名中' && !myEnrollment && !enrollDeadlinePassed;
+  const isFull = activity.status === '已满员';
+  const isEnded = activity.status === '已结束' || activity.status === '已关闭';
+  return (
+    <div className="space-y-4">
+      {/* 海报上下滑动 */}
+      <div className="rounded-2xl overflow-hidden shadow-lg">
+        {allImages.map((img, i) => (
+          <div key={i}>
+            <img
+              src={img}
+              alt={`${activity.name} 海报 ${i + 1}`}
+              className="w-full block"
+            />
+          </div>
+        ))}
+      </div>
+      {/* CTA 按钮 */}
+      <div className="flex gap-3">
+        {myEnrollment ? (
+          <button
+            onClick={() => navigate({ page: 'my-history' })}
+            className="flex-1 py-3.5 rounded-xl bg-emerald-50 text-emerald-700 font-medium text-sm"
+          >
+            已报名 - 查看记录
+          </button>
+        ) : (
+          <button
+            onClick={() => navigate({ page: 'activity-detail', id: activity.id })}
+            className="flex-1 py-3.5 rounded-xl font-medium text-sm bg-primary text-white hover:bg-primary/90 shadow-sm transition-all"
+          >
+            活动详情
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function HomePage() {
   const { activities } = useApp();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<ActivityStatus | 'all'>('all');
-
+  // 专题活动：isFeatured === true && status === '报名中'
+  const featuredActivity = activities.find(a => a.isFeatured && a.status === '报名中');
   const visible = activities.filter(a => a.status !== '草稿');
   const filtered = visible.filter(a => {
     const matchSearch = !search || a.name.includes(search) || a.location.includes(search);
     const matchStatus = statusFilter === 'all' || a.status === statusFilter;
     return matchSearch && matchStatus;
   });
-
   return (
     <div className="min-h-screen bg-background">
       <Header />
-
-      <div className="max-w-2xl mx-auto px-4 pt-6 pb-24">
+      <div className="max-w-2xl mx-auto px-4 pt-4 pb-20">
         {/* Hero */}
-        <div className="mb-6">
-          <h1 className="text-foreground mb-1">探索精彩活动</h1>
-          <p className="text-muted-foreground text-sm">与孩子一起发现世界，共同成长</p>
-        </div>
-
-        {/* Search */}
-        <div className="relative mb-4">
-          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="搜索活动名称或地点..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-3 bg-card rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
-          />
-        </div>
-
-        {/* Status filter */}
-        <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-1 scrollbar-hide">
-          <Filter size={13} className="text-muted-foreground shrink-0" />
-          {STATUS_FILTERS.map(f => (
-            <button
-              key={f.value}
-              onClick={() => setStatusFilter(f.value)}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-sm transition-all ${
-                statusFilter === f.value
-                  ? 'bg-primary text-white shadow-sm'
-                  : 'bg-card text-muted-foreground border border-border hover:border-primary/40'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Activity list */}
-        {filtered.length === 0 ? (
-          <div className="text-center py-16 text-muted-foreground">
-            <div className="text-4xl mb-3">🔍</div>
-            <p>没有找到相关活动</p>
+        {!featuredActivity && (
+          <div className="mb-6">
+            <h1 className="text-foreground mb-1">探索精彩活动</h1>
+            <p className="text-muted-foreground text-sm">与孩子一起发现世界，共同成长</p>
           </div>
+        )}
+        {featuredActivity ? (
+          <FeaturedActivitySection activity={featuredActivity} />
         ) : (
-          <div className="space-y-4">
-            {filtered.map(activity => (
-              <ActivityCard key={activity.id} activity={activity} />
-            ))}
-          </div>
+          <>
+            {/* Search */}
+            <div className="relative mb-4">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="搜索活动名称或地点..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-3 bg-card rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+              />
+            </div>
+            {/* Status filter */}
+            <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-1 scrollbar-hide">
+              <Filter size={13} className="text-muted-foreground shrink-0" />
+              {STATUS_FILTERS.map(f => (
+                <button
+                  key={f.value}
+                  onClick={() => setStatusFilter(f.value)}
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-sm transition-all ${
+                    statusFilter === f.value
+                      ? 'bg-primary text-white shadow-sm'
+                      : 'bg-card text-muted-foreground border border-border hover:border-primary/40'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            {/* Activity list */}
+            {filtered.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground">
+                <div className="text-4xl mb-3">🔍</div>
+                <p>没有找到相关活动</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filtered.map(activity => (
+                  <ActivityCard key={activity.id} activity={activity} />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

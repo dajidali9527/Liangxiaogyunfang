@@ -2,24 +2,27 @@ import { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AdminLayout } from './AdminLayout';
 import { StatusBadge } from '../shared/StatusBadge';
-import { ArrowLeft, Search, CheckCircle, DollarSign, LogOut, RotateCcw, Filter, Users } from 'lucide-react';
-import { Enrollment } from '../../data/mock';
+import { ArrowLeft, Search, CheckCircle, DollarSign, LogOut, RotateCcw, Users, Plus, Trash2, X, Download } from 'lucide-react';
+import { ManualEnrollData } from '../../context/AppContext';
+import * as XLSX from 'xlsx';
 
 type Tab = 'checkin' | 'payment';
 
 export function AdminRosterPage({ activityId }: { activityId: string }) {
-  const { activities, enrollments, users, navigate, updateCheckIn, updatePayment, updateEnrollment } = useApp();
+  const { activities, enrollments, users, navigate, updateCheckIn, updatePayment, updateEnrollment, manualEnroll, removeEnrollment } = useApp();
   const activity = activities.find(a => a.id === activityId);
   const [tab, setTab] = useState<Tab>('checkin');
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [noteModal, setNoteModal] = useState<{ enrollId: string; type: 'admin' | 'payment' } | null>(null);
   const [noteText, setNoteText] = useState('');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm, setAddForm] = useState<ManualEnrollData>({ contactName: '', contactPhone: '', adults: 1, children: 0, amount: 0, note: '' });
+  const [addResult, setAddResult] = useState<{ success: boolean; message: string } | null>(null);
 
   if (!activity) return null;
 
   const actEnrollments = enrollments.filter(e => e.activityId === activityId && e.status !== '已取消' && e.status !== '已移除');
-
   const enriched = actEnrollments.map(e => ({
     ...e,
     user: users.find(u => u.id === e.userId),
@@ -32,7 +35,6 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
     if (tab === 'payment' && filterStatus !== 'all') matchFilter = e.paymentStatus === filterStatus;
     return matchSearch && matchFilter;
   });
-
   const checkedInCount = actEnrollments.filter(e => e.checkInStatus !== '未签到').length;
   const confirmedCount = actEnrollments.filter(e => e.paymentStatus === '已确认' || e.paymentStatus === '已减免').length;
 
@@ -40,11 +42,54 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
     setNoteText(current);
     setNoteModal({ enrollId, type });
   };
-
   const saveNote = () => {
     if (!noteModal) return;
     updateEnrollment(noteModal.enrollId, { adminNote: noteText });
     setNoteModal(null);
+  };
+
+  const handleAddEnroll = () => {
+    if (!addForm.contactPhone) return;
+    const result = manualEnroll(activityId, addForm);
+    setAddResult(result);
+    if (result.success) {
+      setTimeout(() => {
+        setShowAddModal(false);
+        setAddForm({ contactName: '', contactPhone: '', adults: 1, children: 0, amount: 0, note: '' });
+        setAddResult(null);
+      }, 500);
+    }
+  };
+
+  const handleRemove = (enrollmentId: string, name: string) => {
+    if (confirm(`确定要移除 ${name} 的报名吗？将保留历史数据。`)) {
+      removeEnrollment(enrollmentId);
+    }
+  };
+
+  const handleExport = () => {
+    const rows = actEnrollments.map(e => {
+      const u = users.find(u => u.id === e.userId);
+      return {
+        '昵称': e.contactName || u?.nickname || u?.name || '',
+        '手机号': e.contactPhone || u?.phone || '',
+        '成人人数': e.adults,
+        '儿童人数': e.children,
+        '报名状态': e.status,
+        '签到状态': e.checkInStatus,
+        '签到时间': e.checkInTime || '',
+        '离场时间': e.checkOutTime || '',
+        '收费状态': e.paymentStatus,
+        '金额': e.amount,
+        '报名时间': e.enrolledAt,
+        '备注': e.note || '',
+        '管理员备注': e.adminNote || '',
+      };
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '报名列表');
+    XLSX.writeFile(wb, `${activity.name}_报名列表.xlsx`);
   };
 
   return (
@@ -54,12 +99,25 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
           <button onClick={() => navigate({ page: 'admin-activities' })} className="text-muted-foreground hover:text-foreground">
             <ArrowLeft size={18} />
           </button>
-          <div>
+          <div className="flex-1">
             <h1 className="text-foreground leading-tight">{activity.name}</h1>
             <p className="text-muted-foreground text-sm">{activity.startDate} · {activity.location}</p>
           </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleExport}
+              className="flex items-center gap-2 px-4 py-2.5 bg-secondary text-foreground rounded-xl text-sm font-medium hover:bg-muted transition-colors"
+            >
+              <Download size={16} /> 导出Excel
+            </button>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm"
+            >
+              <Plus size={16} /> 后台报名
+            </button>
+          </div>
         </div>
-
         {/* Quick stats */}
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-card rounded-xl p-3 border border-border text-center">
@@ -75,7 +133,6 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
             <div className="text-xs text-muted-foreground">已收费确认</div>
           </div>
         </div>
-
         {/* Tabs */}
         <div className="flex gap-1 bg-muted p-1 rounded-xl">
           {([['checkin', '签到管理'], ['payment', '收费确认']] as [Tab, string][]).map(([t, label]) => (
@@ -90,13 +147,12 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
             </button>
           ))}
         </div>
-
         {/* Search and filter */}
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
-              placeholder="搜索姓名或手机号..."
+              placeholder="搜索昵称或手机号..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full pl-8 pr-3 py-2.5 bg-card rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30"
@@ -124,7 +180,6 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
             )}
           </select>
         </div>
-
         {/* Enrollment list */}
         <div className="space-y-3">
           {enriched.length === 0 ? (
@@ -150,7 +205,6 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
                     <StatusBadge status={e.paymentStatus} />
                   </div>
                 </div>
-
                 <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
                   <span>{e.adults}成人 {e.children}儿童</span>
                   <span>·</span>
@@ -158,13 +212,11 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
                   <span>·</span>
                   <span>报名 {e.enrolledAt.split(' ')[0]}</span>
                 </div>
-
                 {e.note && (
                   <div className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2 mb-3">
                     备注：{e.note}
                   </div>
                 )}
-
                 {tab === 'checkin' ? (
                   <div className="flex gap-2 flex-wrap">
                     {e.checkInStatus === '未签到' && (
@@ -198,9 +250,15 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
                     )}
                     <button
                       onClick={() => openNoteModal(e.id, 'admin', e.adminNote)}
-                      className="ml-auto px-3 py-1.5 bg-muted text-muted-foreground rounded-lg text-xs hover:bg-secondary"
+                      className="px-3 py-1.5 bg-muted text-muted-foreground rounded-lg text-xs hover:bg-secondary"
                     >
                       {e.adminNote ? '修改备注' : '添加备注'}
+                    </button>
+                    <button
+                      onClick={() => handleRemove(e.id, e.user?.name || e.contactName)}
+                      className="ml-auto px-3 py-1.5 bg-red-50 text-destructive rounded-lg text-xs hover:bg-red-100 transition-colors"
+                    >
+                      <Trash2 size={13} className="inline mr-1" />移除
                     </button>
                   </div>
                 ) : (
@@ -234,13 +292,18 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
                     )}
                     <button
                       onClick={() => openNoteModal(e.id, 'payment', e.adminNote)}
-                      className="ml-auto px-3 py-1.5 bg-muted text-muted-foreground rounded-lg text-xs hover:bg-secondary"
+                      className="px-3 py-1.5 bg-muted text-muted-foreground rounded-lg text-xs hover:bg-secondary"
                     >
                       {e.adminNote ? '修改备注' : '添加备注'}
                     </button>
+                    <button
+                      onClick={() => handleRemove(e.id, e.user?.name || e.contactName)}
+                      className="ml-auto px-3 py-1.5 bg-red-50 text-destructive rounded-lg text-xs hover:bg-red-100 transition-colors"
+                    >
+                      <Trash2 size={13} className="inline mr-1" />移除
+                    </button>
                   </div>
                 )}
-
                 {e.adminNote && (
                   <div className="text-xs text-blue-600 bg-blue-50 rounded-lg px-3 py-2 mt-2">
                     管理备注：{e.adminNote}
@@ -268,6 +331,93 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
             <div className="flex gap-3 mt-3">
               <button onClick={() => setNoteModal(null)} className="flex-1 py-2.5 rounded-xl border border-border text-sm hover:bg-muted">取消</button>
               <button onClick={saveNote} className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90">保存</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual add modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setShowAddModal(false); setAddResult(null); }} />
+          <div className="relative bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-foreground">后台报名</h2>
+                <button onClick={() => { setShowAddModal(false); setAddResult(null); }} className="text-muted-foreground hover:text-foreground">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-foreground mb-1.5">昵称（可选）</label>
+                  <input
+                    className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                    value={addForm.contactName}
+                    onChange={e => setAddForm(p => ({ ...p, contactName: e.target.value }))}
+                    placeholder="请输入昵称"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-foreground mb-1.5">手机号 *</label>
+                  <input
+                    className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                    value={addForm.contactPhone}
+                    onChange={e => setAddForm(p => ({ ...p, contactPhone: e.target.value }))}
+                    placeholder="请输入手机号"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">若用户不存在将自动创建账号</p>
+                </div>
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className="block text-sm text-foreground mb-1.5">成人人数</label>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setAddForm(p => ({ ...p, adults: Math.max(1, p.adults - 1) }))} className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-foreground hover:bg-muted">-</button>
+                      <span className="text-foreground font-medium w-6 text-center">{addForm.adults}</span>
+                      <button onClick={() => setAddForm(p => ({ ...p, adults: p.adults + 1 }))} className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-foreground hover:bg-muted">+</button>
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-sm text-foreground mb-1.5">儿童人数</label>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setAddForm(p => ({ ...p, children: Math.max(0, p.children - 1) }))} className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-foreground hover:bg-muted">-</button>
+                      <span className="text-foreground font-medium w-6 text-center">{addForm.children}</span>
+                      <button onClick={() => setAddForm(p => ({ ...p, children: p.children + 1 }))} className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-foreground hover:bg-muted">+</button>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm text-foreground mb-1.5">备注</label>
+                  <textarea
+                    className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+                    rows={2}
+                    value={addForm.note}
+                    onChange={e => setAddForm(p => ({ ...p, note: e.target.value }))}
+                    placeholder="备注信息"
+                  />
+                </div>
+                {addResult && (
+                  <p className={`text-sm px-3 py-2 rounded-lg ${addResult.success ? 'text-emerald-600 bg-emerald-50' : 'text-destructive bg-red-50'}`}>
+                    {addResult.message}
+                  </p>
+                )}
+                <div className="flex gap-3 pt-2">
+                  <button onClick={() => { setShowAddModal(false); setAddResult(null); }} className="flex-1 py-3 rounded-xl border border-border text-foreground text-sm hover:bg-muted transition-colors">
+                    取消
+                  </button>
+                  <button
+                    onClick={handleAddEnroll}
+                    disabled={!addForm.contactPhone}
+                    className={`flex-1 py-3 rounded-xl text-sm font-medium transition-colors ${
+                      addForm.contactPhone
+                        ? 'bg-primary text-white hover:bg-primary/90'
+                        : 'bg-muted text-muted-foreground cursor-not-allowed'
+                    }`}
+                  >
+                    确认添加
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -1,11 +1,10 @@
 import { useApp } from '../../context/AppContext';
 import { Header } from '../shared/Header';
 import { StatusBadge } from '../shared/StatusBadge';
-import { ArrowLeft, Calendar, MapPin, Users, CheckCircle, DollarSign, Clock } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Users, CheckCircle, Clock, FileText, LogOut } from 'lucide-react';
 
 export function MyHistoryPage() {
   const { currentUser, enrollments, activities, navigate } = useApp();
-
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-background">
@@ -19,13 +18,11 @@ export function MyHistoryPage() {
       </div>
     );
   }
-
   const myEnrollments = enrollments.filter(e => e.userId === currentUser.id);
   const withActivity = myEnrollments.map(e => ({
     enrollment: e,
     activity: activities.find(a => a.id === e.activityId),
   })).filter(x => x.activity);
-
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -36,12 +33,10 @@ export function MyHistoryPage() {
         >
           <ArrowLeft size={14} /> 返回首页
         </button>
-
         <div className="flex items-center justify-between mb-5">
           <h1 className="text-foreground">我的报名记录</h1>
           <span className="text-sm text-muted-foreground">共 {withActivity.length} 条</span>
         </div>
-
         {withActivity.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">
             <div className="text-4xl mb-3">📋</div>
@@ -55,7 +50,7 @@ export function MyHistoryPage() {
             {withActivity.map(({ enrollment: e, activity: a }) => (
               <div
                 key={e.id}
-                onClick={() => navigate({ page: 'activity-detail', id: a!.id })}
+                onClick={() => navigate({ page: 'my-activity-detail', enrollmentId: e.id })}
                 className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm hover:shadow-md cursor-pointer transition-all group"
               >
                 <div className="flex gap-0">
@@ -82,19 +77,31 @@ export function MyHistoryPage() {
                         <CheckCircle size={11} className={e.checkInStatus === '已签到' || e.checkInStatus === '已离场' ? 'text-emerald-500' : 'text-muted-foreground'} />
                         <StatusBadge status={e.checkInStatus} />
                       </div>
-                      <div className="flex items-center gap-1">
-                        <DollarSign size={11} className={e.paymentStatus === '已确认' ? 'text-emerald-500' : 'text-muted-foreground'} />
-                        <StatusBadge status={e.paymentStatus} />
-                      </div>
                     </div>
                   </div>
                 </div>
-                <div className="border-t border-border px-4 py-2.5 flex items-center justify-between bg-muted/30">
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1"><Users size={11} />{e.adults}大{e.children}小</span>
-                    <span className="flex items-center gap-1"><Clock size={11} />报名于 {e.enrolledAt.split(' ')[0]}</span>
+                {/* 增强信息栏 */}
+                <div className="border-t border-border px-4 py-2.5 bg-muted/30">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center gap-1"><Users size={11} />{e.adults}大{e.children}小</span>
+                      <span className="flex items-center gap-1"><Clock size={11} />{e.enrolledAt}</span>
+                    </div>
                   </div>
-                  <span className="text-accent text-xs font-semibold">¥{e.amount}</span>
+                  {/* 签到/离场时间 */}
+                  {(e.checkInTime || e.checkOutTime) && (
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground mb-1.5">
+                      {e.checkInTime && <span className="flex items-center gap-1"><LogOut size={11} />签到 {e.checkInTime}</span>}
+                      {e.checkOutTime && <span className="flex items-center gap-1">离场 {e.checkOutTime}</span>}
+                    </div>
+                  )}
+                  {/* 管理员备注 */}
+                  {e.adminNote && (
+                    <div className="flex items-center gap-1 text-xs text-blue-600">
+                      <FileText size={11} />
+                      <span className="truncate">管理备注：{e.adminNote}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

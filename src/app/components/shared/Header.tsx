@@ -16,10 +16,7 @@ export function Header() {
           <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center">
             <span className="text-white text-xs font-bold">云</span>
           </div>
-          <div className="leading-none">
-            <div className="text-sm font-semibold text-foreground">两小云房</div>
-            <div className="text-[10px] text-muted-foreground">亲子游学活动</div>
-          </div>
+          <span className="text-sm font-semibold text-foreground">两小云房</span>
         </button>
 
         {currentUser ? (

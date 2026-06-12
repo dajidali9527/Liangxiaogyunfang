@@ -80,7 +80,7 @@ function LoginForm({ redirect }: { redirect?: Route }) {
 
 function RegisterForm() {
   const { register, navigate } = useApp();
-  const [form, setForm] = useState({ name: '', phone: '', email: '', password: '', confirmPwd: '', nickname: '' });
+  const [form, setForm] = useState({ phone: '', email: '', password: '', confirmPwd: '', nickname: '' });
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -90,13 +90,13 @@ function RegisterForm() {
 
   const handleRegister = async () => {
     setError('');
-    if (!form.name || !form.phone || !form.password) { setError('请填写姓名、手机号和密码'); return; }
+    if (!form.phone || !form.password) { setError('请填写手机号和密码'); return; }
     if (!/^1[3-9]\d{9}$/.test(form.phone)) { setError('请输入有效的手机号'); return; }
     if (form.password.length < 6) { setError('密码至少6位'); return; }
     if (form.password !== form.confirmPwd) { setError('两次密码不一致'); return; }
     setLoading(true);
     await new Promise(r => setTimeout(r, 300));
-    const result = register({ name: form.name, phone: form.phone, email: form.email, password: form.password, nickname: form.nickname });
+    const result = register({ name: form.nickname || form.phone, phone: form.phone, email: form.email, password: form.password, nickname: form.nickname });
     setLoading(false);
     if (result.success) {
       navigate({ page: 'home' });
@@ -107,26 +107,6 @@ function RegisterForm() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm text-foreground mb-1.5">真实姓名 *</label>
-          <input
-            className="w-full px-3 py-3 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-            placeholder="如：李小明"
-            value={form.name}
-            onChange={set('name')}
-          />
-        </div>
-        <div>
-          <label className="block text-sm text-foreground mb-1.5">昵称（可选）</label>
-          <input
-            className="w-full px-3 py-3 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-            placeholder="如：小明爸爸"
-            value={form.nickname}
-            onChange={set('nickname')}
-          />
-        </div>
-      </div>
       <div>
         <label className="block text-sm text-foreground mb-1.5">手机号 *</label>
         <input
@@ -135,6 +115,15 @@ function RegisterForm() {
           placeholder="请输入11位手机号"
           value={form.phone}
           onChange={set('phone')}
+        />
+      </div>
+      <div>
+        <label className="block text-sm text-foreground mb-1.5">昵称（可选）</label>
+        <input
+          className="w-full px-4 py-3 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+          placeholder="如：小明爸爸"
+          value={form.nickname}
+          onChange={set('nickname')}
         />
       </div>
       <div>

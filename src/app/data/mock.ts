@@ -5,6 +5,13 @@ export type PaymentStatus = '未确认' | '已确认' | '已减免' | '已退款
 export type UserRole = 'user' | 'admin';
 export type UserStatus = 'active' | 'disabled';
 
+export interface ContentBlock {
+  type: 'text' | 'image';
+  content?: string;
+  src?: string;
+  caption?: string;
+}
+
 export interface Activity {
   id: string;
   name: string;
@@ -17,11 +24,16 @@ export interface Activity {
   enrolled: number;
   enrollDeadline: string;
   enrollStartDate: string;
-  description: string;
+  description: ContentBlock[];
   imageUrl: string;
   payee: string;
   tags: string[];
   createdAt: string;
+  isFeatured: boolean;
+  featuredPoster: string;
+  featuredDescription: string;
+  images: string[];
+  videoUrl: string;
 }
 
 export interface AppUser {
@@ -61,32 +73,45 @@ export interface Enrollment {
 export const ACTIVITIES: Activity[] = [
   {
     id: 'act-001',
-    name: '云房自然探索营 · 山野篇',
+    name: '用村庄养育孩子：龙潭共育生活营',
     status: '报名中',
     startDate: '2026-07-05',
-    endDate: '2026-07-07',
-    location: '杭州市余杭区天目山自然保护区',
+    endDate: '2026-07-11',
+    location: '福建省屏南县龙潭村两小云房民宿',
     price: 380,
     capacity: 30,
     enrolled: 18,
-    enrollDeadline: '2026-06-25',
+    enrollDeadline: '2026-07-01',
     enrollStartDate: '2026-06-01',
-    description: `本次活动带领亲子家庭走进天目山自然保护区，开展为期三天的自然探索之旅。
-
-活动亮点：
-• 专业自然导师带队，深入森林生态讲解
-• 昆虫标本制作、植物拓印、石头彩绘等手工活动
-• 夜间萤火虫观察，感受山野夜晚的神奇
-• 帐篷露营，亲子共同搭建营地
-• 山泉溪流戏水，感受大自然的纯净
-
-活动费用包含：餐食（6正餐2早餐）、住宿（帐篷）、保险、导师费、物料费
-
-适合年龄：5-12岁儿童（须有家长陪同）`,
-    imageUrl: 'https://images.unsplash.com/photo-1441974231-7444f18907db?w=800&h=500&fit=crop&auto=format',
+    description: [
+      { type: 'text', content: 'Slogan：不是被推着，而是生命开始舒展' },
+      { type: 'text', content: '这是一场为期 5 天的沉浸式乡村亲子生活营，落脚于龙潭村的山野与烟火之中，以 "村庄养育" 为核心理念，跳出快节奏的日常，让亲子在自然里松弛、在共创中联结，让生命在慢节奏里自然舒展。' },
+      { type: 'text', content: '五日行程概览' },
+      { type: 'text', content: 'DAY 1 入营初遇・关系开始流动\n傍晚开启开营仪式，以户外即兴游戏、狮帝卡牌互动、彩虹卡分享快速破冰，通过随机交换夏日礼物拉近距离。随后伴着晚风与音乐开启龙潭长桌宴，炭火、西瓜、欢笑相伴，在轻松的氛围里完成两小云房的初遇，让亲子间、家庭间的关系自然流动。' },
+      { type: 'text', content: 'DAY 2 向内感知・重新看见生活\n清晨从山村晨息开启：晨起冥想、静心抄经，在慢节奏里唤醒身心。上午亲子同逛龙潭村，大人围坐品茶，畅聊 "为何重新寻找乡村""为何卷入生活的漩涡"；孩子在规则游戏里释放天性，一同共享地道乡村午餐。\n下午开启「两小云房生命地图」深度共创：大人围圈分享生命轨迹，孩子以写生、绘画感知乡村里的微小事物，在表达与倾听里，重新看见彼此与生活本身。\n夜晚伴着萤火开启龙潭夜聊：孩子体验桌游、探索自然夜色；大人围坐梳理生活关键词，暖光小蜡烛相伴，卸下日常的疲惫。' },
+      { type: 'text', content: 'DAY 3 自然滋养・生命力重新成长\n上午亲子徒步前往四坪村，孩子在自然里玩水喂鱼，大人闲坐品茶闲谈，在山野清风里彻底松弛。\n下午开启陶艺与绘画共创，一同制作专属家庭主题杯，在手工创作里沉淀亲子协作的温度，践行 "好好吃饭、好好喝水" 的生活本真。\n夜晚全家协作做饭、烤制披萨，通过亲子雕塑、戏剧、观影等趣味游戏收获满满欢笑；大人也可选择围坐夜聊，在烟火气里感受乡村生活的治愈。' },
+      { type: 'text', content: 'DAY 4 共创沉淀・看见生活的美\n上午进行亲子扎染体验，亲手为衣物染上专属色彩，把乡村的自然印记留在织物之上。\n下午全家共同布置「两小云房生活艺术展」，排演结营节目，用画作、花卉、日常物件搭建起 "看见生活的美" 主题展，在共创里沉淀四天的收获与感动。\n夜晚举办结营音乐趴，分享行程中的照片与故事，同步开启龙潭小苑开启仪式，以奖牌、纪念礼物与满满的仪式感，为这段乡村共育时光画上温暖句点。' },
+      { type: 'text', content: 'DAY 5 从容告别・带着舒展前行\n上午以 "我是一棵树" 创意合影定格专属回忆，随后留给大家自由活动时间，可闲逛村落、再沐山野清风。带着被村庄滋养的生命力与舒展的状态，从容告别龙潭，回归日常。' },
+      { type: 'image', src: '/images/专题活动.png' },
+    ],
+    imageUrl: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Beautiful%20mountain%20forest%20nature%20camping%20with%20tents%20and%20green%20trees%20summer%20day&image_size=landscape_4_3',
     payee: '两小云房（支付宝/微信均可）',
-    tags: ['自然探索', '户外露营', '亲子'],
+    tags: ['自然探索', '抄经', '油画', '陶艺', '扎染'],
     createdAt: '2026-05-20',
+    isFeatured: true,
+    featuredPoster: '/images/Haibao1.jpg',
+    featuredDescription: `这个夏天，带孩子走进天目山自然保护区，开启三天两夜的自然探索之旅！
+
+专业自然导师全程带队，深入森林生态讲解，昆虫标本制作、植物拓印、石头彩绘等手工活动精彩纷呈。夜间萤火虫观察，感受山野夜晚的神奇；帐篷露营，亲子共同搭建营地；山泉溪流戏水，感受大自然的纯净。
+
+名额有限，快来报名吧！`,
+    images: [
+      '/images/Haibao2.jpg',
+      '/images/Haibao3.jpg',
+      '/images/Haibao4.jpg',
+      '/images/专题活动.png',
+    ],
+    videoUrl: '',
   },
   {
     id: 'act-002',
@@ -100,21 +125,18 @@ export const ACTIVITIES: Activity[] = [
     enrolled: 25,
     enrollDeadline: '2026-06-15',
     enrollStartDate: '2026-05-25',
-    description: `一日科技探索体验活动，让孩子近距离感受前沿科技的魅力。
-
-活动内容：
-• 机器人编程入门（乐高教育套件）
-• 3D打印亲手制作专属小作品
-• VR/AR沉浸式体验区
-• 无人机飞行体验与操控
-• 科技创新交流与作品展示
-
-活动对象：6-14岁儿童及家长
-注意：活动名额已满，可联系我们登记候补`,
-    imageUrl: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&h=500&fit=crop&auto=format',
+    description: [
+      { type: 'text', content: '一日科技探索体验活动，让孩子近距离感受前沿科技的魅力。\n\n活动内容：\n• 机器人编程入门（乐高教育套件）\n• 3D打印亲手制作专属小作品\n• VR/AR沉浸式体验区\n• 无人机飞行体验与操控\n• 科技创新交流与作品展示\n\n活动对象：6-14岁儿童及家长\n注意：活动名额已满，可联系我们登记候补' },
+    ],
+    imageUrl: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Kids%20learning%20robotics%20and%20coding%20with%20colorful%20LEGO%20robots%20in%20a%20modern%20tech%20classroom&image_size=landscape_4_3',
     payee: '两小云房',
     tags: ['科技', '编程', '创新'],
     createdAt: '2026-05-15',
+    isFeatured: false,
+    featuredPoster: '',
+    featuredDescription: '',
+    images: [],
+    videoUrl: '',
   },
   {
     id: 'act-003',
@@ -128,21 +150,18 @@ export const ACTIVITIES: Activity[] = [
     enrolled: 20,
     enrollDeadline: '2026-05-05',
     enrollStartDate: '2026-04-20',
-    description: `走进龙井村，感受千年茶文化的底蕴。
-
-活动内容：
-• 专业茶师讲解龙井茶的历史与文化
-• 亲手采摘茶叶，体验传统炒茶工艺
-• 规范茶道礼仪学习与实践
-• 品茗与精致点心分享
-• 制作专属茶叶礼盒带回家
-
-活动地点：正宗龙井村茶园及百年茶室
-适合家庭，无年龄限制`,
-    imageUrl: 'https://images.unsplash.com/photo-1544787219-7f47028f64f4?w=800&h=500&fit=crop&auto=format',
+    description: [
+      { type: 'text', content: '走进龙井村，感受千年茶文化的底蕴。\n\n活动内容：\n• 专业茶师讲解龙井茶的历史与文化\n• 亲手采摘茶叶，体验传统炒茶工艺\n• 规范茶道礼仪学习与实践\n• 品茗与精致点心分享\n• 制作专属茶叶礼盒带回家\n\n活动地点：正宗龙井村茶园及百年茶室\n适合家庭，无年龄限制' },
+    ],
+    imageUrl: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Traditional%20Chinese%20tea%20ceremony%20in%20a%20peaceful%20green%20tea%20garden%20with%20mountains%20in%20background&image_size=landscape_4_3',
     payee: '两小云房',
     tags: ['传统文化', '茶道', '亲子'],
     createdAt: '2026-04-10',
+    isFeatured: false,
+    featuredPoster: '',
+    featuredDescription: '',
+    images: [],
+    videoUrl: '',
   },
   {
     id: 'act-004',
@@ -156,20 +175,18 @@ export const ACTIVITIES: Activity[] = [
     enrolled: 6,
     enrollDeadline: '2026-07-10',
     enrollStartDate: '2026-06-15',
-    description: `专业艺术导师带领亲子家庭共同创作，发现艺术的无限可能。
-
-活动内容：
-• 水彩画入门技法趣味讲解
-• 亲子共同创作主题水彩画
-• 色彩理论互动游戏
-• 个人作品精美装裱与展示
-
-材料由我们提供，无需自备任何物品
-适合年龄：4岁以上儿童及家长`,
-    imageUrl: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800&h=500&fit=crop&auto=format',
+    description: [
+      { type: 'text', content: '专业艺术导师带领亲子家庭共同创作，发现艺术的无限可能。\n\n活动内容：\n• 水彩画入门技法趣味讲解\n• 亲子共同创作主题水彩画\n• 色彩理论互动游戏\n• 个人作品精美装裱与展示\n\n材料由我们提供，无需自备任何物品\n适合年龄：4岁以上儿童及家长' },
+    ],
+    imageUrl: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Parent%20and%20child%20painting%20watercolor%20together%20in%20a%20bright%20art%20studio%20with%20colorful%20paints&image_size=landscape_4_3',
     payee: '两小云房',
     tags: ['艺术', '绘画', '亲子创作'],
     createdAt: '2026-06-01',
+    isFeatured: false,
+    featuredPoster: '',
+    featuredDescription: '',
+    images: [],
+    videoUrl: '',
   },
   {
     id: 'act-005',
@@ -183,11 +200,18 @@ export const ACTIVITIES: Activity[] = [
     enrolled: 0,
     enrollDeadline: '2026-09-28',
     enrollStartDate: '2026-09-01',
-    description: '秋季农场体验活动，亲子一起感受收获的喜悦（筹备中）。',
-    imageUrl: 'https://images.unsplash.com/photo-1500595046743-cd271d694d30?w=800&h=500&fit=crop&auto=format',
+    description: [
+      { type: 'text', content: '秋季农场体验活动，亲子一起感受收获的喜悦（筹备中）。' },
+    ],
+    imageUrl: 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Happy%20family%20harvesting%20vegetables%20in%20a%20golden%20autumn%20farm%20field%20with%20pumpkins&image_size=landscape_4_3',
     payee: '两小云房',
     tags: ['农耕体验', '秋收', '亲子'],
     createdAt: '2026-06-10',
+    isFeatured: false,
+    featuredPoster: '',
+    featuredDescription: '',
+    images: [],
+    videoUrl: '',
   },
 ];
 

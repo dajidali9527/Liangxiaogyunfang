@@ -8,6 +8,7 @@ export type Route =
   | { page: 'register' }
   | { page: 'my-history' }
   | { page: 'my-activity-detail'; enrollmentId: string }
+  | { page: 'register-confirm'; activityId: string; enrollData: EnrollData }
   | { page: 'admin-dashboard' }
   | { page: 'admin-activities' }
   | { page: 'admin-activity-detail'; activityId: string }
@@ -24,13 +25,16 @@ interface AppState {
   login: (phone: string, password: string) => { success: boolean; message: string };
   logout: () => void;
   register: (data: RegisterData) => { success: boolean; message: string };
-  enroll: (activityId: string, data: EnrollData) => { success: boolean; message: string };
+  enroll: (activityId: string, data: EnrollData) => { success: boolean; message: string; autoCreated?: boolean; password?: string };
   updateCheckIn: (enrollmentId: string, status: Enrollment['checkInStatus'], time?: string) => void;
   updatePayment: (enrollmentId: string, status: Enrollment['paymentStatus'], note?: string) => void;
   updateEnrollment: (enrollmentId: string, updates: Partial<Enrollment>) => void;
   updateActivity: (activityId: string, updates: Partial<Activity>) => void;
   updateUser: (userId: string, updates: Partial<AppUser>) => void;
   addActivity: (activity: Activity) => void;
+  manualEnroll: (activityId: string, data: ManualEnrollData) => { success: boolean; message: string };
+  removeEnrollment: (enrollmentId: string) => void;
+  findOrCreateUserByPhone: (phone: string, name: string) => AppUser;
 }
 
 export interface RegisterData {
@@ -47,6 +51,15 @@ export interface EnrollData {
   contactName: string;
   contactPhone: string;
   note: string;
+}
+
+export interface ManualEnrollData {
+  contactName: string;
+  contactPhone: string;
+  adults: number;
+  children: number;
+  amount: number;
+  note?: string;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -96,8 +109,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { success: true, message: '注册成功' };
   };
 
+  const findOrCreateUserByPhone = (phone: string, name: string) => {
+    const existing = users.find(u => u.phone === phone);
+    if (existing) return existing;
+    const defaultPassword = phone.slice(-6);
+    const newUser: AppUser = {
+      id: `user-${Date.now()}`,
+      name: name || phone,
+      nickname: name || phone,
+      phone,
+      email: '',
+      role: 'user',
+      status: 'active',
+      registeredAt: new Date().toISOString().split('T')[0],
+      lastLoginAt: new Date().toISOString().split('T')[0],
+      password: defaultPassword,
+    };
+    setUsers(prev => [...prev, newUser]);
+    return newUser;
+  };
+
   const enroll = (activityId: string, data: EnrollData) => {
-    if (!currentUser) return { success: false, message: '请先登录' };
     const activity = activities.find(a => a.id === activityId);
     if (!activity) return { success: false, message: '活动不存在' };
     if (activity.status === '已关闭' || activity.status === '已结束') {
@@ -106,8 +138,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (activity.enrolled >= activity.capacity) {
       return { success: false, message: '活动名额已满' };
     }
+    // 自动创建账号：根据手机号查找或创建用户
+    let user = currentUser;
+    let autoCreated = false;
+    let autoPassword = '';
+    if (!user) {
+      user = findOrCreateUserByPhone(data.contactPhone, data.contactName);
+      autoCreated = true;
+      autoPassword = data.contactPhone.slice(-6);
+      setCurrentUser(user);
+    }
     const existing = enrollments.find(
-      e => e.activityId === activityId && e.userId === currentUser.id && e.status !== '已取消' && e.status !== '已移除'
+      e => e.activityId === activityId && e.userId === user!.id && e.status !== '已取消' && e.status !== '已移除'
     );
     if (existing) return { success: false, message: '您已报名此活动' };
 
@@ -115,7 +157,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const newEnrollment: Enrollment = {
       id: `enr-${Date.now()}`,
       activityId,
-      userId: currentUser.id,
+      userId: user.id,
       enrolledAt: new Date().toLocaleString('zh-CN'),
       status: '已报名',
       checkInStatus: '未签到',
@@ -130,7 +172,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
     setEnrollments(prev => [...prev, newEnrollment]);
     setActivities(prev => prev.map(a => a.id === activityId ? { ...a, enrolled: a.enrolled + 1 } : a));
-    return { success: true, message: '报名成功！' };
+    return { success: true, message: '报名成功！', autoCreated, password: autoCreated ? autoPassword : undefined };
+  };
+
+  const manualEnroll = (activityId: string, data: ManualEnrollData) => {
+    const activity = activities.find(a => a.id === activityId);
+    if (!activity) return { success: false, message: '活动不存在' };
+    const user = findOrCreateUserByPhone(data.contactPhone, data.contactName);
+    const existing = enrollments.find(
+      e => e.activityId === activityId && e.userId === user.id && e.status !== '已取消' && e.status !== '已移除'
+    );
+    if (existing) return { success: false, message: '该用户已报名此活动' };
+    const newEnrollment: Enrollment = {
+      id: `enr-${Date.now()}`,
+      activityId,
+      userId: user.id,
+      enrolledAt: new Date().toLocaleString('zh-CN'),
+      status: '已报名',
+      checkInStatus: '未签到',
+      paymentStatus: '未确认',
+      amount: data.amount,
+      adults: data.adults,
+      children: data.children,
+      contactName: data.contactName,
+      contactPhone: data.contactPhone,
+      note: data.note || '',
+      adminNote: '管理员后台报名',
+    };
+    setEnrollments(prev => [...prev, newEnrollment]);
+    setActivities(prev => prev.map(a => a.id === activityId ? { ...a, enrolled: a.enrolled + 1 } : a));
+    return { success: true, message: '添加成功' };
+  };
+
+  const removeEnrollment = (enrollmentId: string) => {
+    setEnrollments(prev => prev.map(e => e.id === enrollmentId ? { ...e, status: '已移除' as const } : e));
   };
 
   const updateCheckIn = (enrollmentId: string, status: Enrollment['checkInStatus'], time?: string) => {
@@ -182,6 +257,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       navigate, login, logout, register, enroll,
       updateCheckIn, updatePayment, updateEnrollment,
       updateActivity, updateUser, addActivity,
+      manualEnroll, removeEnrollment, findOrCreateUserByPhone,
     }}>
       {children}
     </AppContext.Provider>
