@@ -6,4 +6,4 @@ COPY . .
 RUN npx prisma generate
 RUN npm run build
 EXPOSE 3001
-CMD ["sh", "-c", "npx prisma db push && npm run db:seed; node dist/index.js"]
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss=false 2>/dev/null; node dist/index.js"]
