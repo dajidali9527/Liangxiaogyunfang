@@ -1,13 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AdminLayout } from './AdminLayout';
 import { StatusBadge } from '../shared/StatusBadge';
-import { Search, ChevronRight, UserX, UserCheck, Calendar, CheckCircle, DollarSign, Activity } from 'lucide-react';
+import { Search, ChevronRight, UserX, UserCheck, Calendar, CheckCircle, DollarSign, Activity, KeyRound } from 'lucide-react';
 
 export function AdminUsersPage() {
-  const { users, enrollments, activities, navigate, updateUser } = useApp();
+  const { users, enrollments, activities, navigate, updateUser, fetchUsers, resetPassword } = useApp();
   const [search, setSearch] = useState('');
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  useEffect(() => {
+    fetchUsers();
+  }, []);
   const filtered = users.filter(u => {
     const q = search.toLowerCase();
     return !search || u.name.includes(q) || u.phone.includes(q) || u.email.includes(q) || u.nickname.includes(q);
@@ -28,10 +31,10 @@ export function AdminUsersPage() {
     if (userEnrollments.length === 0) return null;
     return userEnrollments.sort((a, b) => b.enrolledAt.localeCompare(a.enrolledAt))[0];
   };
-  const toggleStatus = (userId: string, current: 'active' | 'disabled') => {
+  const toggleStatus = async (userId: string, current: 'active' | 'disabled') => {
     const msg = current === 'active' ? '确定要禁用此用户？' : '确定要恢复此用户？';
     if (confirm(msg)) {
-      updateUser(userId, { status: current === 'active' ? 'disabled' : 'active' });
+      await updateUser(userId, { status: current === 'active' ? 'disabled' : 'active' });
     }
   };
   const selectedUserData = selectedUser ? users.find(u => u.id === selectedUser) : null;
@@ -71,8 +74,8 @@ export function AdminUsersPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-foreground font-medium text-sm">{u.name}</span>
-                      {u.nickname !== u.name && <span className="text-muted-foreground text-xs">({u.nickname})</span>}
+                      <span className="text-foreground font-medium text-sm">{u.nickname || u.name}</span>
+                      {u.nickname && u.nickname !== u.name && <span className="text-muted-foreground text-xs">({u.name})</span>}
                       {u.role === 'admin' && <span className="px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded">管理员</span>}
                       <StatusBadge status={u.status} />
                     </div>
@@ -93,17 +96,31 @@ export function AdminUsersPage() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {u.role !== 'admin' && (
-                      <button
-                        onClick={() => toggleStatus(u.id, u.status)}
-                        className={`p-1.5 rounded-lg transition-colors ${
-                          u.status === 'active'
-                            ? 'text-muted-foreground hover:text-destructive hover:bg-red-50'
-                            : 'text-emerald-600 hover:bg-emerald-50'
-                        }`}
-                        title={u.status === 'active' ? '禁用用户' : '恢复用户'}
-                      >
-                        {u.status === 'active' ? <UserX size={15} /> : <UserCheck size={15} />}
-                      </button>
+                      <>
+                        <button
+                          onClick={async () => {
+                            const newPwd = u.phone.slice(-6);
+                            if (confirm(`确定将 ${u.name} 的密码重置为手机号后6位（${newPwd}）？`)) {
+                              await resetPassword(u.id);
+                            }
+                          }}
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-secondary transition-colors"
+                          title="重置密码为手机号后6位"
+                        >
+                          <KeyRound size={15} />
+                        </button>
+                        <button
+                          onClick={() => toggleStatus(u.id, u.status)}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            u.status === 'active'
+                              ? 'text-muted-foreground hover:text-destructive hover:bg-red-50'
+                              : 'text-emerald-600 hover:bg-emerald-50'
+                          }`}
+                          title={u.status === 'active' ? '禁用用户' : '恢复用户'}
+                        >
+                          {u.status === 'active' ? <UserX size={15} /> : <UserCheck size={15} />}
+                        </button>
+                      </>
                     )}
                     <button
                       onClick={() => setSelectedUser(selectedUser === u.id ? null : u.id)}

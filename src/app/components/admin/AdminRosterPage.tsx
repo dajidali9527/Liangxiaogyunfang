@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AdminLayout } from './AdminLayout';
 import { StatusBadge } from '../shared/StatusBadge';
@@ -9,7 +9,7 @@ import * as XLSX from 'xlsx';
 type Tab = 'checkin' | 'payment';
 
 export function AdminRosterPage({ activityId }: { activityId: string }) {
-  const { activities, enrollments, users, navigate, updateCheckIn, updatePayment, updateEnrollment, manualEnroll, removeEnrollment } = useApp();
+  const { activities, enrollments, users, currentUser, navigate, updateCheckIn, updatePayment, updateEnrollment, manualEnroll, removeEnrollment, fetchAdminEnrollments } = useApp();
   const activity = activities.find(a => a.id === activityId);
   const [tab, setTab] = useState<Tab>('checkin');
   const [search, setSearch] = useState('');
@@ -19,6 +19,12 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [addForm, setAddForm] = useState<ManualEnrollData>({ contactName: '', contactPhone: '', adults: 1, children: 0, amount: 0, note: '' });
   const [addResult, setAddResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [confirmPayModal, setConfirmPayModal] = useState<{ enrollId: string; action: '已确认' | '已减免' } | null>(null);
+  const [confirmPayAmount, setConfirmPayAmount] = useState('');
+  const [lastPayAmount, setLastPayAmount] = useState('');
+  useEffect(() => {
+    fetchAdminEnrollments(activityId);
+  }, [activityId]);
 
   if (!activity) return null;
 
@@ -42,15 +48,15 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
     setNoteText(current);
     setNoteModal({ enrollId, type });
   };
-  const saveNote = () => {
+  const saveNote = async () => {
     if (!noteModal) return;
-    updateEnrollment(noteModal.enrollId, { adminNote: noteText });
+    await updateEnrollment(noteModal.enrollId, { adminNote: noteText });
     setNoteModal(null);
   };
 
-  const handleAddEnroll = () => {
+  const handleAddEnroll = async () => {
     if (!addForm.contactPhone) return;
-    const result = manualEnroll(activityId, addForm);
+    const result = await manualEnroll(activityId, addForm);
     setAddResult(result);
     if (result.success) {
       setTimeout(() => {
@@ -61,9 +67,9 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
     }
   };
 
-  const handleRemove = (enrollmentId: string, name: string) => {
+  const handleRemove = async (enrollmentId: string, name: string) => {
     if (confirm(`确定要移除 ${name} 的报名吗？将保留历史数据。`)) {
-      removeEnrollment(enrollmentId);
+      await removeEnrollment(enrollmentId);
     }
   };
 
@@ -82,6 +88,7 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
         '收费状态': e.paymentStatus,
         '金额': e.amount,
         '报名时间': e.enrolledAt,
+        '参与者明细': (e.participants || []).map((p, i) => `${p.name || (i < e.adults ? `成人${i+1}` : `儿童${i-e.adults+1}`)}${p.gender ? '/'+p.gender : ''}${p.age ? '/'+p.age+'岁' : ''}${p.note ? '/'+p.note : ''}`).join('；') || '',
         '备注': e.note || '',
         '管理员备注': e.adminNote || '',
       };
@@ -89,7 +96,9 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '报名列表');
-    XLSX.writeFile(wb, `${activity.name}_报名列表.xlsx`);
+    const now = new Date();
+    const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+    XLSX.writeFile(wb, `zersolo_${activity.name}_报名列表_${ts}.xlsx`);
   };
 
   return (
@@ -221,7 +230,7 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
                   <div className="flex gap-2 flex-wrap">
                     {e.checkInStatus === '未签到' && (
                       <button
-                        onClick={() => updateCheckIn(e.id, '已签到')}
+                        onClick={(ev) => { ev.stopPropagation(); updateCheckIn(e.id, '已签到').then(() => setFilterStatus('all')); }}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-medium hover:bg-emerald-100 transition-colors"
                       >
                         <CheckCircle size={13} /> 签到
@@ -230,13 +239,13 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
                     {e.checkInStatus === '已签到' && (
                       <>
                         <button
-                          onClick={() => updateCheckIn(e.id, '已离场')}
+                          onClick={(ev) => { ev.stopPropagation(); updateCheckIn(e.id, '已离场').then(() => setFilterStatus('all')); }}
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-100 transition-colors"
                         >
                           <LogOut size={13} /> 记录离场
                         </button>
                         <button
-                          onClick={() => updateCheckIn(e.id, '未签到')}
+                          onClick={(ev) => { ev.stopPropagation(); updateCheckIn(e.id, '未签到').then(() => setFilterStatus('all')); }}
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-muted text-muted-foreground rounded-lg text-xs hover:bg-secondary transition-colors"
                         >
                           <RotateCcw size={13} /> 取消签到
@@ -266,13 +275,13 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
                     {e.paymentStatus === '未确认' && (
                       <>
                         <button
-                          onClick={() => updatePayment(e.id, '已确认')}
+                          onClick={(ev) => { ev.stopPropagation(); setConfirmPayAmount(lastPayAmount || String(e.amount)); setConfirmPayModal({ enrollId: e.id, action: '已确认' }); }}
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-medium hover:bg-emerald-100"
                         >
-                          <DollarSign size={13} /> 确认收款 ¥{e.amount}
+                          <DollarSign size={13} /> 确认收款
                         </button>
                         <button
-                          onClick={() => updatePayment(e.id, '已减免')}
+                          onClick={(ev) => { ev.stopPropagation(); setConfirmPayAmount('0'); setConfirmPayModal({ enrollId: e.id, action: '已减免' }); }}
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs hover:bg-blue-100"
                         >
                           减免
@@ -283,7 +292,7 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
                       <>
                         <span className="text-xs text-emerald-600">已由 {e.confirmedBy} 确认</span>
                         <button
-                          onClick={() => updatePayment(e.id, '已退款')}
+                          onClick={(ev) => { ev.stopPropagation(); updatePayment(e.id, '已退款').then(() => setFilterStatus('all')); }}
                           className="px-3 py-1.5 bg-muted text-muted-foreground rounded-lg text-xs hover:bg-secondary"
                         >
                           标记退款
@@ -314,6 +323,52 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
           )}
         </div>
       </div>
+
+      {/* Confirm payment modal */}
+      {confirmPayModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40" onClick={() => setConfirmPayModal(null)} />
+          <div className="relative bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="text-foreground mb-3">{confirmPayModal.action === '已确认' ? '确认收款' : '确认减免'}</h3>
+            <div>
+              <label className="block text-sm text-muted-foreground mb-1.5">收款金额（元）</label>
+              <input
+                type="number"
+                className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                value={confirmPayAmount}
+                onChange={e => setConfirmPayAmount(e.target.value)}
+                placeholder="请输入金额"
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => setConfirmPayModal(null)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-foreground text-sm hover:bg-muted"
+              >
+                取消
+              </button>
+              <button
+                onClick={async () => {
+                  const amount = Number(confirmPayAmount) || 0;
+                  await updateEnrollment(confirmPayModal.enrollId, {
+                    paymentStatus: confirmPayModal.action,
+                    amount,
+                    confirmedBy: currentUser?.name,
+                    confirmedAt: new Date().toLocaleString('zh-CN'),
+                  });
+                  setLastPayAmount(confirmPayAmount);
+                  setConfirmPayModal(null);
+                  setFilterStatus('all');
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90"
+              >
+                确认
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Note modal */}
       {noteModal && (

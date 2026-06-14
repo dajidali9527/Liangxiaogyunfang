@@ -1,340 +1,319 @@
-# 良宵云坊 - 亲子游学活动管理（V1.1）
+# 两小云房 - 亲子游学活动管理系统（V2.0）
 
 项目代码来源：https://github.com/dajidali9527/Liangxiaogyunfang
 
-## 初始化
+## 快速开始
 
-使用国内镜像安装依赖：
+### 前端
 
 ```bash
+# 安装依赖（国内镜像）
 npm install --registry=https://registry.npmmirror.com
+
+# 启动开发服务器（支持局域网访问）
+npm run dev
 ```
 
-## 运行
+- 本机访问：http://localhost:5173/
+- 局域网访问：http://你的IP:5173/
 
-启动开发服务器：
+### 后端
 
 ```bash
-npm run dev -- --host 0.0.0.0
+cd backend
+
+# 安装依赖
+npm install --registry=https://registry.npmmirror.com
+
+# 生成 Prisma Client
+npm run db:generate
+
+# 推送数据库结构（首次）
+npm run db:push
+
+# 导入种子数据（首次）
+npm run db:seed
+
+# 启动开发服务器
+npm run dev
 ```
 
-默认访问：http://localhost:5173/
+- 后端 API：http://localhost:3001/api/
+- 健康检查：http://localhost:3001/api/health
 
-## 测试账号
+### 管理员账号
 
-| 角色 | 手机号 | 密码 |
+| 登录方式 | 账号 | 密码 |
 |---|---|---|
-| 管理员 | 13800000000 | admin123 |
-| 普通用户 | 13811111111 | test123 |
+| 用户名登录 | liangxiaoyunfang | admin123 |
+| 手机号登录 | 13800000000 | admin123 |
 
-> 匿名报名时自动创建账号，默认密码为手机号后6位
+> 注册按钮已隐藏，用户通过报名自动创建账号并登录，默认密码为手机号后6位，可登录后自行修改
 
 ---
 
-## 技术栈
+## 1. 技术栈
 
-| 类别 | 技术 | 版本 |
+### 前端
+
+| 类别 | 技术 | 版本 | 说明 |
+|---|---|---|---|
+| **构建工具** | Vite | 6.3.5 | 开发服务器 + 生产构建 + proxy 代理 |
+| **前端框架** | React | 18.3.1 | 函数组件 + Hooks |
+| **语言** | TypeScript | - | 类型安全 |
+| **CSS 方案** | Tailwind CSS | 4.1.12 | 原子化 CSS |
+| **UI 组件库** | Radix UI + shadcn/ui | 多个 1.x/2.x | 无障碍 UI 原语 + 封装组件 |
+| **图标库** | Lucide React | 0.487.0 | SVG 图标 |
+| **图表库** | Recharts | 2.15.2 | 管理后台统计图表 |
+| **Excel 导出** | xlsx | 0.18.5 | 报名列表导出 |
+| **动画库** | Motion | 12.23.24 | 交互动画 |
+| **日期处理** | date-fns | 3.6.0 | 日期格式化 |
+| **通知** | Sonner | 2.0.3 | Toast 提示 |
+| **路由** | 自定义实现 | - | Context + switch-case |
+| **状态管理** | React Context + useState | - | 全局状态 + API 调用 |
+
+### 后端
+
+| 类别 | 技术 | 版本 | 说明 |
+|---|---|---|---|
+| **运行时** | Node.js | 20+ | 后端运行环境 |
+| **框架** | Express | 4.21+ | RESTful API |
+| **ORM** | Prisma | 6.0+ | 数据库 ORM |
+| **数据库** | PostgreSQL | 16 | yun_schema 专用模式 |
+| **认证** | JWT + bcryptjs | - | Token 认证 + 密码加密 |
+| **开发工具** | tsx | 4.0+ | TypeScript 执行 + 热重载 |
+
+---
+
+## 2. 项目结构
+
+```
+22LiangXiaoYunFang/
+├── src/app/                          # 前端源码
+│   ├── api/                          # API 调用层
+│   │   ├── client.ts                 # HTTP 客户端（fetch + token 管理）
+│   │   ├── auth.api.ts               # 认证 API
+│   │   ├── activity.api.ts           # 活动 API
+│   │   ├── enrollment.api.ts         # 报名 API
+│   │   ├── admin.api.ts              # 管理后台 API
+│   │   └── index.ts                  # 统一导出
+│   ├── context/
+│   │   └── AppContext.tsx            # 全局状态 + API 调用
+│   ├── data/
+│   │   └── mock.ts                   # 类型定义 + Mock 数据（仅类型使用）
+│   ├── components/
+│   │   ├── pages/                    # 前台页面
+│   │   ├── admin/                    # 管理后台
+│   │   ├── shared/                   # 共享组件
+│   │   └── ui/                       # shadcn/ui 组件库
+│   └── App.tsx                       # 根组件
+├── backend/                          # 后端源码
+│   ├── src/
+│   │   ├── index.ts                  # Express 入口
+│   │   ├── config/
+│   │   │   └── database.ts           # Prisma 客户端
+│   │   ├── middleware/
+│   │   │   └── auth.ts               # JWT 认证中间件
+│   │   └── routes/
+│   │       ├── auth.ts               # 认证路由
+│   │       ├── activity.ts           # 活动路由
+│   │       ├── enrollment.ts         # 报名路由
+│   │       └── admin.ts              # 管理后台路由
+│   ├── prisma/
+│   │   ├── schema.prisma             # 数据模型
+│   │   └── seed.ts                   # 种子数据
+│   ├── .env                          # 环境变量
+│   ├── Dockerfile                    # Docker 构建
+│   ├── package.json
+│   └── tsconfig.json
+└── vite.config.ts                    # Vite 配置（含 proxy）
+```
+
+---
+
+## 3. API 端点
+
+### 认证 `/api/auth`
+
+| 方法 | 路径 | 说明 | 认证 |
+|---|---|---|---|
+| POST | `/api/auth/login` | 登录（手机号/用户名 + 密码） | 无 |
+| POST | `/api/auth/register` | 注册 | 无 |
+| GET | `/api/auth/me` | 获取当前用户 | JWT |
+| PUT | `/api/auth/password` | 修改密码 | JWT |
+
+### 活动 `/api/activities`
+
+| 方法 | 路径 | 说明 | 认证 |
+|---|---|---|---|
+| GET | `/api/activities` | 活动列表 | 无 |
+| GET | `/api/activities/:id` | 活动详情 | 无 |
+| POST | `/api/activities` | 创建活动 | Admin |
+| PUT | `/api/activities/:id` | 更新活动 | Admin |
+
+### 报名 `/api/enrollments`
+
+| 方法 | 路径 | 说明 | 认证 |
+|---|---|---|---|
+| POST | `/api/enrollments` | 报名（匿名，自动创建账号） | 无 |
+| GET | `/api/enrollments/my` | 我的报名记录 | JWT |
+| GET | `/api/enrollments/:id` | 报名详情 | JWT |
+| PUT | `/api/enrollments/:id` | 更新报名 | JWT |
+
+### 管理后台 `/api/admin`
+
+| 方法 | 路径 | 说明 | 认证 |
+|---|---|---|---|
+| GET | `/api/admin/dashboard` | 运营概览 | Admin |
+| GET | `/api/admin/users` | 用户列表 | Admin |
+| PUT | `/api/admin/users/:id` | 更新用户 | Admin |
+| POST | `/api/admin/users/:id/reset-password` | 重置密码 | Admin |
+| GET | `/api/admin/enrollments?activityId=` | 报名列表 | Admin |
+| POST | `/api/admin/enrollments/manual` | 后台报名 | Admin |
+| PUT | `/api/admin/enrollments/:id/checkin` | 签到管理 | Admin |
+| PUT | `/api/admin/enrollments/:id/payment` | 收费管理 | Admin |
+| PUT | `/api/admin/enrollments/:id/remove` | 移除报名 | Admin |
+| GET | `/api/admin/stats` | 统计分析 | Admin |
+
+---
+
+## 4. 数据模型（Prisma Schema）
+
+### User（用户）
+
+| 字段 | 类型 | 说明 |
 |---|---|---|
-| 构建工具 | Vite | 6.3.5 |
-| 前端框架 | React | 18.3.1 |
-| 语言 | TypeScript | - |
-| CSS 方案 | Tailwind CSS | 4.1.12 |
-| UI 组件库 | Radix UI + shadcn/ui 风格封装 | 多个 1.x/2.x |
-| 图标库 | Lucide React | 0.487.0 |
-| 图表库 | Recharts | 2.15.2 |
-| 动画库 | Motion (原 Framer Motion) | 12.23.24 |
-| 日期处理 | date-fns | 3.6.0 |
-| 通知 | Sonner | 2.0.3 |
-| 路由 | 自定义实现（Context + switch-case） | - |
-| 状态管理 | React Context + useState | - |
-| 路径别名 | `@` -> `./src` | - |
-
-> 备注：项目安装了 react-router、MUI、react-hook-form 等依赖但实际未使用。项目源自 Figma Make 导出。
-
----
-
-## 页面路由
-
-项目采用自定义路由方案，通过 AppContext 中的 route 状态 + App.tsx 中的 switch-case 实现页面切换。
-
-```typescript
-export type Route =
-  | { page: 'home' }
-  | { page: 'activity-detail'; id: string }
-  | { page: 'login'; redirect?: Route }
-  | { page: 'register' }
-  | { page: 'my-history' }
-  | { page: 'my-activity-detail'; enrollmentId: string }
-  | { page: 'admin-dashboard' }
-  | { page: 'admin-activities' }
-  | { page: 'admin-activity-detail'; activityId: string }
-  | { page: 'admin-users' }
-  | { page: 'admin-stats' };
-```
-
----
-
-## 页面文件对应关系
-
-| 路由 page 值 | 组件文件 | 说明 |
-|---|---|---|
-| `home` | HomePage.tsx | 首页，活动列表+搜索+筛选 |
-| `activity-detail` | ActivityDetailPage.tsx | 活动详情+报名（需 id 参数） |
-| `login` | AuthPage.tsx (mode="login") | 登录页（可选 redirect） |
-| `register` | AuthPage.tsx (mode="register") | 注册页 |
-| `my-history` | MyHistoryPage.tsx | 我的报名记录 |
-| `my-activity-detail` | *(未实现)* | 路由已定义但无对应 case |
-| `admin-dashboard` | AdminDashboard.tsx | 管理后台概览（AdminGuard） |
-| `admin-activities` | AdminActivitiesPage.tsx | 活动管理（AdminGuard） |
-| `admin-activity-detail` | AdminRosterPage.tsx | 报名名单/签到/收费（需 activityId） |
-| `admin-users` | AdminUsersPage.tsx | 用户管理（AdminGuard） |
-| `admin-stats` | AdminStatsPage.tsx | 统计分析（AdminGuard） |
-
-> AdminGuard：所有 admin 路由经守卫组件，要求 currentUser.role === 'admin'，否则显示"需要管理员权限"。
-
----
-
-## 组件目录结构
-
-```
-src/app/components/
-├── pages/                        # 前台页面组件
-│   ├── HomePage.tsx              # 首页 - 活动列表+搜索+筛选
-│   ├── ActivityDetailPage.tsx    # 活动详情 - 信息展示+报名弹窗
-│   ├── AuthPage.tsx              # 登录/注册页（双模式）
-│   └── MyHistoryPage.tsx         # 我的报名记录
-├── admin/                        # 管理后台组件
-│   ├── AdminLayout.tsx           # 后台布局（侧边栏+移动端适配）
-│   ├── AdminDashboard.tsx        # 运营概览仪表盘
-│   ├── AdminActivitiesPage.tsx   # 活动管理（CRUD+搜索）
-│   ├── AdminRosterPage.tsx       # 报名名单（签到管理+收费确认）
-│   ├── AdminUsersPage.tsx        # 用户管理（搜索+禁用/恢复）
-│   └── AdminStatsPage.tsx        # 统计分析（图表+KPI）
-├── shared/                       # 共享组件
-│   ├── Header.tsx                # 顶部导航栏
-│   └── StatusBadge.tsx           # 状态标签（统一配色）
-├── figma/                        # Figma 导出辅助
-│   └── ImageWithFallback.tsx     # 图片加载失败兜底
-└── ui/                           # shadcn/ui 基础组件库（50+个）
-    ├── button.tsx, card.tsx, dialog.tsx, tabs.tsx ...
-    └── utils.ts                  # cn() 工具函数
-```
-
----
-
-## API 目录结构
-
-项目没有 API 层。所有数据完全依赖前端 Mock，存储在 `src/app/data/mock.ts` 中，通过 `src/app/context/AppContext.tsx` 的 useState 进行状态管理。
-
-数据操作全部通过 Context 中定义的方法：
-
-| 方法 | 功能 |
-|---|---|
-| `login()` / `register()` / `logout()` | 用户认证 |
-| `enroll()` | 活动报名 |
-| `updateCheckIn()` / `updatePayment()` / `updateEnrollment()` | 报名状态管理 |
-| `updateActivity()` / `addActivity()` | 活动管理 |
-| `updateUser()` | 用户管理 |
-
----
-
-## 用户登录逻辑
-
-### 登录流程
-
-1. 用户输入手机号 + 密码
-2. 前端校验非空
-3. 模拟 300ms 延迟
-4. 调用 `login(phone, password)`
-
-### 登录核心逻辑（AppContext.login）
-
-1. 在 users 数组中查找 phone + password 匹配的用户
-2. 未找到 → 返回"手机号或密码错误"
-3. 用户 status === 'disabled' → 返回"账号已被禁用"
-4. 成功 → setCurrentUser(user)，跳转到 redirect 路由或首页
-
-### 注册流程
-
-1. 填写：姓名(必填)、昵称(可选)、手机号(必填)、邮箱(可选)、密码(必填)、确认密码(必填)
-2. 前端校验：手机号格式 `/^1[3-9]\d{9}$/`、密码≥6位、两次密码一致
-3. 调用 register(data) → 检查手机号/邮箱是否已存在 → 创建用户（role: 'user', status: 'active'）→ 自动登录
-
----
-
-## 活动报名逻辑
-
-### 报名条件判断
-
-| 条件 | 结果 |
-|---|---|
-| 活动在报名中 且 未报名过 | 显示"立即报名"按钮 |
-| 活动已结束/已关闭 | 按钮禁用"活动已结束" |
-| 名额已满 | 按钮禁用"名额已满" |
-| 报名截止日期已过 | 按钮禁用"报名已截止" |
-
-### 报名操作流程
-
-1. 点击"立即报名" → 未登录则跳转登录页（带 redirect）
-2. 已登录 → 打开报名弹窗
-3. 填写：联系人姓名、联系手机、成人人数(+-按钮)、儿童人数(+-按钮)、备注
-4. 实时计算费用：`price × (adults + children × 0.5)`（儿童半价）
-5. 确认报名 → 调用 enroll()
-
-### 报名核心逻辑（AppContext.enroll）
-
-1. 未登录检查
-2. 活动存在性 + 状态检查（已关闭/已结束不可报名）
-3. 名额检查（enrolled >= capacity）
-4. 重复报名检查（排除已取消/已移除）
-5. 创建 Enrollment：状态"已报名"、签到"未签到"、付费"未确认"
-6. 活动已报名人数 +1
-
----
-
-## 管理后台逻辑
-
-### AdminLayout（布局组件）
-- 桌面端：左侧固定侧边栏
-- 移动端：顶部 Header + 汉堡菜单打开侧边栏遮罩
-- 侧边栏导航：概览、活动管理、用户管理、统计分析
-
-### AdminDashboard（运营概览）
-- 6 个统计卡片：进行中活动数、总报名人数、已签到、已收费确认、待收费确认、注册用户
-- 最近活动列表（最多 5 条）
-- 待处理事项列表（待收费确认 + 待签到，最多 5 条）
-
-### AdminActivitiesPage（活动管理）
-- 搜索：按名称/地点
-- 新建活动：弹窗表单（名称、状态、日期、地点、价格、容量、封面图、收款方、标签、介绍）
-- 编辑活动：同新建表单，预填数据
-- 关闭活动：确认后设为 status: '已关闭'
-- 查看报名列表：跳转 AdminRosterPage
-
-### AdminRosterPage（报名名单管理）
-- 顶部快速统计：已报名数、已签到数、已收费确认数
-- 签到管理 Tab：搜索+筛选签到状态，操作：签到、记录离场、取消签到、管理备注
-- 收费确认 Tab：搜索+筛选付费状态，操作：确认收款、减免、标记退款、管理备注
-
-### AdminUsersPage（用户管理）
-- 搜索姓名/手机号/邮箱/昵称
-- 禁用/恢复用户（toggle + 确认弹窗）
-- 展开详情：显示该用户所有活动参与记录
-
-### AdminStatsPage（统计分析）
-- 4 个 KPI 卡片：总报名人数、已签到率、收费确认率、已确认金额
-- 柱状图：各活动报名/签到/收费确认对比
-- 饼图 ×2：签到情况分布、收费状态分布
-- 折线图：报名趋势（模拟数据）
-- 活跃用户 TOP 5
-
----
-
-## 数据模型
+| id | String @id @default(cuid()) | 唯一标识 |
+| name | String | 姓名 |
+| nickname | String | 昵称 |
+| phone | String @unique | 手机号 |
+| email | String | 邮箱 |
+| username | String? | 用户名（管理员） |
+| password | String | 密码（bcrypt 加密） |
+| role | String | user / admin |
+| status | String | active / disabled |
+| registeredAt | DateTime | 注册时间 |
+| lastLoginAt | DateTime | 最后登录 |
 
 ### Activity（活动）
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| id | string | 唯一标识，如 act-001 |
-| name | string | 活动名称 |
-| status | ActivityStatus | 报名中/已满员/已结束/已关闭/草稿 |
-| startDate / endDate | string | 活动日期 |
-| location | string | 活动地点 |
-| price | number | 人均价格（元） |
-| capacity | number | 人数上限 |
-| enrolled | number | 已报名人数 |
-| enrollDeadline | string | 报名截止日期 |
-| enrollStartDate | string | 报名开始日期 |
-| description | string | 活动介绍（多行文本） |
-| imageUrl | string | 封面图 URL |
-| payee | string | 收款方 |
-| tags | string[] | 标签数组 |
-| createdAt | string | 创建日期 |
-| isFeatured | boolean | 是否专题活动（V1.1新增） |
-| featuredPoster | string | 专题活动海报URL（V1.1新增） |
-| featuredDescription | string | 专题活动长图文介绍（V1.1新增） |
-| images | string[] | 活动图集URL数组（V1.1新增） |
-| videoUrl | string | 视频链接（V1.1新增） |
-
-### AppUser（用户）
-
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| id | string | 唯一标识，如 user-001 |
-| name | string | 真实姓名 |
-| nickname | string | 昵称 |
-| phone | string | 手机号（登录凭证） |
-| email | string | 邮箱 |
-| role | UserRole | user / admin |
-| status | UserStatus | active / disabled |
-| registeredAt | string | 注册日期 |
-| lastLoginAt | string | 最后登录日期 |
-| password | string | 密码（明文存储） |
+| id | String @id @default(cuid()) | 唯一标识 |
+| name | String | 活动名称 |
+| status | String | 报名中/已满员/已结束/已关闭/草稿 |
+| startDate / endDate | String | 活动日期 |
+| location | String | 活动地点 |
+| price | Float | 人均价格 |
+| capacity / enrolled | Int | 名额/已报名 |
+| enrollDeadline / enrollStartDate | String | 报名截止/开始日期 |
+| description | Json | ContentBlock[] 图文混排 |
+| imageUrl | String | 封面图 |
+| tags | Json | 标签数组 |
+| isFeatured | Boolean | 是否专题活动 |
+| featuredPosters | Json | 专题海报数组 |
+| images | Json | 图集数组 |
+| videoUrl | String | 视频链接 |
 
 ### Enrollment（报名记录）
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| id | string | 唯一标识，如 enr-001 |
-| activityId | string | 关联活动 ID |
-| userId | string | 关联用户 ID |
-| enrolledAt | string | 报名时间 |
-| status | EnrollStatus | 已报名/已取消/已移除/已完成 |
-| checkInStatus | CheckInStatus | 未签到/已签到/已离场 |
-| paymentStatus | PaymentStatus | 未确认/已确认/已减免/已退款 |
-| checkInTime / checkOutTime | string? | 签到/离场时间 |
-| amount | number | 费用金额 |
-| adults / children | number | 成人/儿童人数 |
-| contactName / contactPhone | string | 联系人信息 |
-| note | string | 用户备注 |
-| adminNote | string | 管理员备注 |
-| confirmedBy / confirmedAt | string? | 确认人/确认时间 |
-
-### Mock 数据量
-
-- 5 个活动：2 个报名中、1 个已满员、1 个已结束、1 个草稿
-- 6 个用户：1 个管理员、4 个普通用户、1 个已禁用用户
-- 12 条报名记录：覆盖不同活动和状态组合
+| id | String @id @default(cuid()) | 唯一标识 |
+| activityId / userId | String | 关联活动/用户 |
+| status | String | 已报名/已取消/已移除/已完成 |
+| checkInStatus | String | 未签到/已签到/已离场 |
+| paymentStatus | String | 未确认/已确认/已减免/已退款 |
+| adults / children | Int | 成人/儿童人数 |
+| contactName / contactPhone | String | 联系人信息 |
+| amount | Float | 费用金额 |
+| note / adminNote | String | 备注/管理员备注 |
+| participants | Json | 参与者明细 |
 
 ---
 
-## 关键架构特征
+## 5. 本地开发
 
-1. **纯前端应用**：无后端、无 API、无持久化，刷新即丢失数据
-2. **自定义路由**：未使用 react-router，通过 Context + switch-case 实现
-3. **全局状态管理**：React Context + useState，无 Redux/Zustand
-4. **费用计算**：成人全价 + 儿童半价 `price × (adults + children × 0.5)`
-5. **权限控制**：仅 AdminGuard 判断 role === 'admin'，无细粒度权限
-6. **安全风险**：密码明文存储、无 Token/Session 机制
+前端 Vite 开发服务器配置了 proxy，自动将 `/api` 请求代理到后端 `localhost:3001`：
+
+```typescript
+// vite.config.ts
+server: {
+  proxy: {
+    '/api': {
+      target: 'http://localhost:3001',
+      changeOrigin: true,
+    },
+  },
+}
+```
+
+启动顺序：
+1. 先启动后端：`cd backend && npm run dev`
+2. 再启动前端：`npm run dev`
 
 ---
 
-## V1.1 更新日志
+## 6. 生产部署
 
-### 新增功能
-- 专题活动首页展示：isFeatured + featuredPoster + featuredDescription
-- 匿名报名：无需登录即可报名
-- 自动创建账号：根据手机号自动注册，默认密码为手机号后6位
-- 报名确认页（RegisterConfirmPage）
-- 报名详情页（MyActivityDetailPage）
-- 管理员手动添加报名
-- 管理员移除报名用户（保留历史数据）
-- 用户活动轨迹查询（报名次数、签到次数、收费确认次数）
-- 活动图集（多图轮播）
-- 视频介绍（iframe嵌入/外链跳转）
+部署统一在 `23zeroSoloDeploy` 项目管理。
 
-### 修改文件
-- `src/app/data/mock.ts` - Activity 新增 isFeatured/featuredPoster/featuredDescription/images/videoUrl 字段
-- `src/app/context/AppContext.tsx` - 新增路由、匿名报名、自动创建账号、manualEnroll、removeEnrollment
-- `src/app/App.tsx` - 新增路由注册
-- `src/app/components/pages/HomePage.tsx` - 专题活动优先展示
-- `src/app/components/pages/ActivityDetailPage.tsx` - 海报轮播+图集+视频+匿名报名
-- `src/app/components/pages/MyHistoryPage.tsx` - 增强字段展示
-- `src/app/components/admin/AdminActivitiesPage.tsx` - 专题活动设置+图集+视频
-- `src/app/components/admin/AdminRosterPage.tsx` - 手动添加+移除用户
-- `src/app/components/admin/AdminUsersPage.tsx` - 活动轨迹
+### 部署架构
 
-### 新增文件
-- `src/app/components/pages/RegisterConfirmPage.tsx`
-- `src/app/components/pages/MyActivityDetailPage.tsx`
+```
+用户 → Nginx(HTTPS) → 前端静态文件(/opt/www/yun/)
+                    → 后端API(backend-api:3001/api/)
+                    → PostgreSQL(yun_schema)
+```
+
+### 部署步骤
+
+```bash
+# 1. 构建前端
+cd 22LiangXiaoYunFang
+npm run build
+
+# 2. 拷贝前端产物
+cp -r dist/* ../23zeroSoloDeploy/www/yun/
+
+# 3. 启动服务
+cd ../23zeroSoloDeploy
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+### 环境变量
+
+- 开发环境：`23zeroSoloDeploy/env/.env.dev`
+- 生产环境：`23zeroSoloDeploy/env/.env.prod`
+- 关键变量：`DATABASE_URL`、`JWT_SECRET`、`JWT_EXPIRES_IN`
+
+---
+
+## 7. 关键架构特征
+
+1. **前后端分离**：React 前端 + Express 后端 + PostgreSQL 数据库
+2. **JWT 认证**：Token 存储在 localStorage，自动附加到请求头
+3. **匿名报名机制**：不强制登录，报名时自动创建账号（手机号后6位为默认密码）
+4. **图文混排**：活动介绍支持 ContentBlock[]（文字块+图片块交替排列）
+5. **隐私合规**：报名需勾选隐私协议，弹窗说明数据收集范围
+6. **Excel 导出**：管理后台支持导出活动报名列表为 .xlsx 文件
+7. **自定义路由**：未使用 react-router，通过 Context + switch-case 实现
+8. **API 层封装**：前端 `src/app/api/` 统一管理 HTTP 请求
+9. **局域网访问**：Vite 配置 `host: '0.0.0.0'`，支持同 WiFi 设备访问
+10. **Docker 部署**：后端 Dockerfile + docker-compose 编排
+
+---
+
+## V2.0 更新日志
+
+### 架构升级
+- 新增 Node.js + Express 后端 API 服务
+- 新增 Prisma ORM + PostgreSQL 数据库（yun_schema）
+- 新增 JWT + bcryptjs 认证体系
+- 前端 AppContext 从内存操作改为 API 调用（所有方法变为 async）
+- 新增前端 API 层（src/app/api/）：client.ts、auth.api.ts、activity.api.ts、enrollment.api.ts、admin.api.ts
+- Vite 配置 proxy 代理 /api 到后端 3001 端口
+- 新增后端 Dockerfile + .dockerignore
+- 新增 Prisma seed 脚本（5个活动+6个用户+12条报名记录）
+- 更新 23zeroSoloDeploy 部署配置（docker-compose、nginx、env）
+- AppContext 新增 loading 状态、fetchXxx 方法、changePassword、resetPassword

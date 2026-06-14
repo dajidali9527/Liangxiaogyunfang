@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { StatusBadge } from '../shared/StatusBadge';
 import { Header } from '../shared/Header';
-import { ArrowLeft, MapPin, Calendar, Users, Clock, ExternalLink, CheckCircle, ChevronLeft, ChevronRight, Play } from 'lucide-react';
-import { EnrollData } from '../../context/AppContext';
+import { ArrowLeft, MapPin, Calendar, Users, Clock, CheckCircle, ChevronLeft, ChevronRight, Play } from 'lucide-react';
+import { EnrollData, Participant } from '../../context/AppContext';
 
 export function ActivityDetailPage({ activityId }: { activityId: string }) {
   const { activities, enrollments, currentUser, navigate, enroll } = useApp();
@@ -12,14 +12,43 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
   const [agreed, setAgreed] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [enrollForm, setEnrollForm] = useState<EnrollData>({
-    adults: 1,
-    children: 1,
-    contactName: currentUser?.nickname || currentUser?.name || '',
-    contactPhone: currentUser?.phone || '',
+    adults: 0,
+    children: 0,
+    contactName: '',
+    contactPhone: '',
     note: '',
+    participants: [],
   });
   const [enrollResult, setEnrollResult] = useState<{ success: boolean; message: string; autoCreated?: boolean; password?: string } | null>(null);
   const [currentImage, setCurrentImage] = useState(0);
+  const rebuildParticipants = (adults: number, children: number, existing: Participant[]): Participant[] => {
+    const total = adults + children;
+    const result: Participant[] = [];
+    for (let i = 0; i < total; i++) {
+      const defaultName = i < adults ? `成人${i + 1}` : `儿童${i - adults + 1}`;
+      result.push(existing[i] || { name: defaultName, gender: '', age: '', note: '' });
+    }
+    return result;
+  };
+  const updateParticipant = (idx: number, field: keyof Participant, value: string) => {
+    setEnrollForm(p => {
+      const ps = [...p.participants];
+      ps[idx] = { ...ps[idx], [field]: value };
+      return { ...p, participants: ps };
+    });
+  };
+  const mapRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!mapRef.current || !activity) return;
+    const AMap = (window as any).AMap;
+    if (!AMap) return;
+    const map = new AMap.Map(mapRef.current, {
+      zoom: 16,
+      center: [119.074442, 26.772955],
+      resizeEnable: true,
+    });
+    return () => { map.destroy(); };
+  }, [activity]);
 
   if (!activity) {
     return (
@@ -39,7 +68,7 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
   const enrollDeadlinePassed = new Date(activity.enrollDeadline) < new Date();
 
   // 图片轮播
-  const allImages = [activity.featuredPoster || activity.imageUrl, ...activity.images.filter(img => img !== (activity.featuredPoster || activity.imageUrl))];
+  const allImages = activity.images.length > 0 ? activity.images : activity.featuredPosters;
   const prevImage = () => setCurrentImage(i => (i > 0 ? i - 1 : allImages.length - 1));
   const nextImage = () => setCurrentImage(i => (i < allImages.length - 1 ? i + 1 : 0));
 
@@ -48,8 +77,8 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
     if (canEnroll) setEnrolling(true);
   };
 
-  const handleEnroll = () => {
-    const result = enroll(activityId, enrollForm);
+  const handleEnroll = async () => {
+    const result = await enroll(activityId, enrollForm);
     setEnrollResult(result);
     if (result.success) setEnrolling(false);
   };
@@ -118,12 +147,15 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
                 </div>
               </div>
             </div>
-            <div className="flex items-start gap-3">
-              <MapPin size={16} className="text-primary mt-0.5 shrink-0" />
-              <div>
-                <div className="text-xs text-muted-foreground mb-0.5">活动地点</div>
-                <div className="text-sm text-foreground">{activity.location}</div>
+            <div>
+              <div className="flex items-start gap-3 mb-2">
+                <MapPin size={16} className="text-primary mt-0.5 shrink-0" />
+                <div>
+                  <div className="text-xs text-muted-foreground mb-0.5">活动地点</div>
+                  <div className="text-sm text-foreground">{activity.location}</div>
+                </div>
               </div>
+              <div ref={mapRef} className="w-full h-40 rounded-xl overflow-hidden border border-border" />
             </div>
             <div className="flex items-start gap-3">
               <Clock size={16} className="text-primary mt-0.5 shrink-0" />
@@ -202,21 +234,6 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
               )}
             </div>
           )}
-
-          {/* 视频占位（无视频时） */}
-          {!activity.videoUrl && (
-            <div className="bg-card rounded-2xl p-4 border border-border">
-              <h3 className="text-foreground mb-2">相关视频</h3>
-              <a
-                href="#"
-                className="flex items-center gap-2 text-primary text-sm hover:underline"
-                onClick={e => e.preventDefault()}
-              >
-                <ExternalLink size={14} />
-                查看活动回顾视频（B站）
-              </a>
-            </div>
-          )}
         </div>
       </div>
 
@@ -234,12 +251,12 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
               </div>
               {enrollResult.autoCreated && enrollResult.password && (
                 <div className="mt-2 text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
-                  已为您自动创建账号，手机号：{enrollForm.contactPhone}，默认密码：{enrollResult.password}，请妥善保管！
+                  已为您自动创建账号并登录，手机号：{enrollForm.contactPhone}，默认密码：{enrollResult.password}，请妥善保管！
                 </div>
               )}
             </div>
           )}
-          {myEnrollment && (
+          {!enrollResult?.success && myEnrollment && (
             <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 rounded-xl px-4 py-3 mb-3 text-sm">
               <CheckCircle size={16} />
               您已报名此活动
@@ -274,15 +291,6 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
               <p className="text-muted-foreground text-sm mb-5">{activity.name}</p>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm text-foreground mb-1.5">联系人昵称（可选）</label>
-                  <input
-                    className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                    value={enrollForm.contactName}
-                    onChange={e => setEnrollForm(p => ({ ...p, contactName: e.target.value }))}
-                    placeholder="请输入联系人昵称"
-                  />
-                </div>
-                <div>
                   <label className="block text-sm text-foreground mb-1.5">联系手机 *</label>
                   <input
                     className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
@@ -291,20 +299,37 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
                     placeholder="请输入手机号"
                   />
                   {!currentUser && (
-                    <p className="text-xs text-muted-foreground mt-1">未注册将自动创建账号，密码为手机号后6位，可登录自行修改</p>
+                    <p className="text-xs text-muted-foreground mt-1">报名后将自动创建账号并登录，密码为手机号后6位</p>
                   )}
+                </div>
+                <div>
+                  <label className="block text-sm text-foreground mb-1.5">联系人昵称</label>
+                  <input
+                    className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    value={enrollForm.contactName}
+                    onChange={e => setEnrollForm(p => ({ ...p, contactName: e.target.value }))}
+                    placeholder="请输入联系人昵称"
+                  />
                 </div>
                 <div className="flex gap-3">
                   <div className="flex-1">
                     <label className="block text-sm text-foreground mb-1.5">成人人数</label>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => setEnrollForm(p => ({ ...p, adults: Math.max(1, p.adults - 1) }))}
+                        onClick={() => {
+                          const newAdults = Math.max(0, enrollForm.adults - 1);
+                          const ps = [...enrollForm.participants];
+                          if (ps.length > newAdults + enrollForm.children) ps.splice(newAdults, 1);
+                          setEnrollForm(p => ({ ...p, adults: newAdults, participants: rebuildParticipants(newAdults, p.children, ps) }));
+                        }}
                         className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-foreground hover:bg-muted"
                       >-</button>
                       <span className="text-foreground font-medium w-6 text-center">{enrollForm.adults}</span>
                       <button
-                        onClick={() => setEnrollForm(p => ({ ...p, adults: p.adults + 1 }))}
+                        onClick={() => {
+                          const newAdults = enrollForm.adults + 1;
+                          setEnrollForm(p => ({ ...p, adults: newAdults, participants: rebuildParticipants(newAdults, p.children, p.participants) }));
+                        }}
                         className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-foreground hover:bg-muted"
                       >+</button>
                     </div>
@@ -313,22 +338,68 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
                     <label className="block text-sm text-foreground mb-1.5">儿童人数</label>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => setEnrollForm(p => ({ ...p, children: Math.max(0, p.children - 1) }))}
+                        onClick={() => {
+                          const newChildren = Math.max(0, enrollForm.children - 1);
+                          const ps = [...enrollForm.participants];
+                          if (ps.length > enrollForm.adults + newChildren) ps.splice(enrollForm.adults + newChildren, 1);
+                          setEnrollForm(p => ({ ...p, children: newChildren, participants: rebuildParticipants(p.adults, newChildren, ps) }));
+                        }}
                         className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-foreground hover:bg-muted"
                       >-</button>
                       <span className="text-foreground font-medium w-6 text-center">{enrollForm.children}</span>
                       <button
-                        onClick={() => setEnrollForm(p => ({ ...p, children: p.children + 1 }))}
+                        onClick={() => {
+                          const newChildren = enrollForm.children + 1;
+                          setEnrollForm(p => ({ ...p, children: newChildren, participants: rebuildParticipants(p.adults, newChildren, p.participants) }));
+                        }}
                         className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-foreground hover:bg-muted"
                       >+</button>
                     </div>
                   </div>
                 </div>
+                {enrollForm.participants.length > 0 && (
+                  <div className="space-y-3">
+                    {enrollForm.participants.map((p, idx) => (
+                      <div key={idx} className="bg-input-background rounded-xl p-3 border border-border">
+                        <div className="text-xs font-medium text-muted-foreground mb-2">{p.name || (idx < enrollForm.adults ? `成人${idx + 1}` : `儿童${idx - enrollForm.adults + 1}`)}</div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <input
+                            className="px-2 py-1.5 bg-white rounded-lg border border-border text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                            value={p.name}
+                            onChange={e => updateParticipant(idx, 'name', e.target.value)}
+                            placeholder="称呼"
+                          />
+                          <select
+                            className="px-2 py-1.5 bg-white rounded-lg border border-border text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                            value={p.gender}
+                            onChange={e => updateParticipant(idx, 'gender', e.target.value)}
+                          >
+                            <option value="">性别</option>
+                            <option value="男">男</option>
+                            <option value="女">女</option>
+                          </select>
+                          <input
+                            className="px-2 py-1.5 bg-white rounded-lg border border-border text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                            value={p.age}
+                            onChange={e => updateParticipant(idx, 'age', e.target.value)}
+                            placeholder="年龄"
+                          />
+                        </div>
+                        <input
+                          className="mt-1.5 w-full px-2 py-1.5 bg-white rounded-lg border border-border text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                          value={p.note}
+                          onChange={e => updateParticipant(idx, 'note', e.target.value)}
+                          placeholder="备注"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div>
-                  <label className="block text-sm text-foreground mb-1.5">备注（可选）</label>
+                  <label className="block text-sm text-foreground mb-1.5">备注</label>
                   <textarea
                     className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
-                    rows={2}
+                    rows={4}
                     value={enrollForm.note}
                     onChange={e => setEnrollForm(p => ({ ...p, note: e.target.value }))}
                     placeholder="特殊需求、过敏信息等"
@@ -364,9 +435,9 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
                   </button>
                   <button
                     onClick={handleEnroll}
-                    disabled={!enrollForm.contactPhone || !agreed}
+                    disabled={!enrollForm.contactPhone || !agreed || (enrollForm.adults + enrollForm.children === 0)}
                     className={`flex-1 py-3 rounded-xl text-sm font-medium transition-colors ${
-                      enrollForm.contactPhone && agreed
+                      enrollForm.contactPhone && agreed && (enrollForm.adults + enrollForm.children > 0)
                         ? 'bg-primary text-white hover:bg-primary/90'
                         : 'bg-muted text-muted-foreground cursor-not-allowed'
                     }`}

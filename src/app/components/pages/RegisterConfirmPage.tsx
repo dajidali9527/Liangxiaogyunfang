@@ -15,8 +15,8 @@ export function RegisterConfirmPage({ activityId, enrollData }: { activityId: st
     );
   }
   const autoPassword = enrollData.contactPhone.slice(-6);
-  const handleConfirm = () => {
-    const result = enroll(activityId, enrollData);
+  const handleConfirm = async () => {
+    const result = await enroll(activityId, enrollData);
     if (result.success) {
       navigate({ page: 'my-history' });
     }
@@ -66,6 +66,21 @@ export function RegisterConfirmPage({ activityId, enrollData }: { activityId: st
               <span className="text-muted-foreground">儿童人数</span>
               <span className="text-foreground">{enrollData.children} 人</span>
             </div>
+            {enrollData.participants.length > 0 && (
+              <div>
+                <span className="text-muted-foreground">参与者明细</span>
+                <div className="mt-2 space-y-1.5">
+                  {enrollData.participants.map((p, idx) => (
+                    <div key={idx} className="flex items-center gap-2 text-xs bg-input-background rounded-lg px-2.5 py-1.5">
+                      <span className="font-medium text-foreground">{p.name || (idx < enrollData.adults ? `成人${idx + 1}` : `儿童${idx - enrollData.adults + 1}`)}</span>
+                      {p.gender && <span className="text-muted-foreground">{p.gender}</span>}
+                      {p.age && <span className="text-muted-foreground">{p.age}岁</span>}
+                      {p.note && <span className="text-muted-foreground">· {p.note}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {enrollData.note && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">备注</span>
@@ -80,7 +95,7 @@ export function RegisterConfirmPage({ activityId, enrollData }: { activityId: st
             <AlertCircle size={16} className="text-amber-600 mt-0.5 shrink-0" />
             <div className="text-sm">
               <p className="text-amber-700 font-medium mb-1">账号信息</p>
-              <p className="text-amber-600">系统将为您自动创建账号：</p>
+              <p className="text-amber-600">报名后将自动创建账号并登录：</p>
               <div className="mt-2 space-y-1">
                 <div className="flex justify-between">
                   <span className="text-amber-600">登录账号</span>

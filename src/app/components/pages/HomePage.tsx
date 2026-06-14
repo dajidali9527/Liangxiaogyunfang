@@ -80,19 +80,17 @@ function ActivityCard({ activity }: { activity: Activity }) {
 
 function FeaturedActivitySection({ activity }: { activity: Activity }) {
   const { navigate, currentUser, enrollments } = useApp();
-  const allImages = [activity.featuredPoster || activity.imageUrl, ...activity.images.filter(img => img !== (activity.featuredPoster || activity.imageUrl))];
+  const posters = activity.featuredPosters.length > 0 ? activity.featuredPosters : [activity.imageUrl];
   const enrollDeadlinePassed = new Date(activity.enrollDeadline) < new Date();
   const myEnrollment = currentUser
     ? enrollments.find(e => e.activityId === activity.id && e.userId === currentUser.id && e.status !== '已取消' && e.status !== '已移除')
     : null;
   const canEnroll = activity.status === '报名中' && !myEnrollment && !enrollDeadlinePassed;
-  const isFull = activity.status === '已满员';
-  const isEnded = activity.status === '已结束' || activity.status === '已关闭';
   return (
     <div className="space-y-4">
       {/* 海报上下滑动 */}
       <div className="rounded-2xl overflow-hidden shadow-lg">
-        {allImages.map((img, i) => (
+        {posters.map((img, i) => (
           <div key={i}>
             <img
               src={img}

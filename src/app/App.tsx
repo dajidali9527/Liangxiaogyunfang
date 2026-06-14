@@ -15,7 +15,19 @@ import { AdminLayout } from './components/admin/AdminLayout';
 import { Lock } from 'lucide-react';
 
 function Router() {
-  const { route, currentUser } = useApp();
+  const { route, currentUser, loading } = useApp();
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center mx-auto mb-3">
+            <span className="text-white text-sm font-bold">云</span>
+          </div>
+          <p className="text-muted-foreground text-sm">加载中...</p>
+        </div>
+      </div>
+    );
+  }
 
   const AdminGuard = ({ children }: { children: ReactNode }) => {
     if (!currentUser || currentUser.role !== 'admin') {

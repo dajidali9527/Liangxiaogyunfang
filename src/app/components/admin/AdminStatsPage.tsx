@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AdminLayout } from './AdminLayout';
 import {
@@ -8,70 +9,71 @@ import {
 const COLORS = ['#1a6db5', '#f07c28', '#27a86b', '#9b5de5', '#e03a3a'];
 
 export function AdminStatsPage() {
-  const { activities, enrollments, users } = useApp();
-
+  const { activities, fetchStats } = useApp();
+  const [statsData, setStatsData] = useState<any>(null);
+  useEffect(() => {
+    (async () => {
+      const data = await fetchStats();
+      if (data) setStatsData(data);
+    })();
+  }, []);
+  const enrollments = statsData?.enrollments || [];
+  const users = statsData?.users || [];
   // Enrollments per activity
   const enrollByActivity = activities
     .filter(a => a.status !== '草稿')
     .map(a => ({
       name: a.name.length > 10 ? a.name.slice(0, 10) + '…' : a.name,
-      报名: enrollments.filter(e => e.activityId === a.id && e.status !== '已取消').length,
-      签到: enrollments.filter(e => e.activityId === a.id && (e.checkInStatus === '已签到' || e.checkInStatus === '已离场')).length,
-      收费确认: enrollments.filter(e => e.activityId === a.id && (e.paymentStatus === '已确认' || e.paymentStatus === '已减免')).length,
+      报名: enrollments.filter((e: any) => e.activityId === a.id && e.status !== '已取消').length,
+      签到: enrollments.filter((e: any) => e.activityId === a.id && (e.checkInStatus === '已签到' || e.checkInStatus === '已离场')).length,
+      收费确认: enrollments.filter((e: any) => e.activityId === a.id && (e.paymentStatus === '已确认' || e.paymentStatus === '已减免')).length,
     }));
-
   // Check-in pie
   const checkinData = [
-    { name: '已签到', value: enrollments.filter(e => e.checkInStatus !== '未签到').length },
-    { name: '未签到', value: enrollments.filter(e => e.checkInStatus === '未签到' && e.status !== '已取消').length },
+    { name: '已签到', value: enrollments.filter((e: any) => e.checkInStatus !== '未签到').length },
+    { name: '未签到', value: enrollments.filter((e: any) => e.checkInStatus === '未签到' && e.status !== '已取消').length },
   ];
-
   // Payment pie
   const paymentData = [
-    { name: '已确认', value: enrollments.filter(e => e.paymentStatus === '已确认').length },
-    { name: '已减免', value: enrollments.filter(e => e.paymentStatus === '已减免').length },
-    { name: '未确认', value: enrollments.filter(e => e.paymentStatus === '未确认' && e.status !== '已取消').length },
-    { name: '已退款', value: enrollments.filter(e => e.paymentStatus === '已退款').length },
+    { name: '已确认', value: enrollments.filter((e: any) => e.paymentStatus === '已确认').length },
+    { name: '已减免', value: enrollments.filter((e: any) => e.paymentStatus === '已减免').length },
+    { name: '未确认', value: enrollments.filter((e: any) => e.paymentStatus === '未确认' && e.status !== '已取消').length },
+    { name: '已退款', value: enrollments.filter((e: any) => e.paymentStatus === '已退款').length },
   ].filter(d => d.value > 0);
-
   // Top users
   const userActivity = users
-    .filter(u => u.role === 'user')
-    .map(u => ({
+    .filter((u: any) => u.role === 'user')
+    .map((u: any) => ({
       name: u.name,
       nickname: u.nickname,
-      count: enrollments.filter(e => e.userId === u.id && e.status !== '已取消').length,
-      amount: enrollments.filter(e => e.userId === u.id).reduce((sum, e) => sum + e.amount, 0),
+      count: enrollments.filter((e: any) => e.userId === u.id && e.status !== '已取消').length,
+      amount: enrollments.filter((e: any) => e.userId === u.id).reduce((sum: number, e: any) => sum + e.amount, 0),
     }))
-    .sort((a, b) => b.count - a.count)
+    .sort((a: any, b: any) => b.count - a.count)
     .slice(0, 5);
-
   // Enrollment trend (simulated monthly)
   const trend = [
     { month: '2月', 报名: 3 },
     { month: '3月', 报名: 5 },
     { month: '4月', 报名: 8 },
     { month: '5月', 报名: 12 },
-    { month: '6月', 报名: enrollments.filter(e => e.enrolledAt.startsWith('2026-06')).length },
+    { month: '6月', 报名: enrollments.filter((e: any) => e.enrolledAt?.startsWith('2026-06')).length },
   ];
-
-  const totalRevenue = enrollments.filter(e => e.paymentStatus === '已确认').reduce((s, e) => s + e.amount, 0);
+  const totalRevenue = enrollments.filter((e: any) => e.paymentStatus === '已确认').reduce((s: number, e: any) => s + e.amount, 0);
   const checkinRate = enrollments.length > 0
-    ? Math.round((enrollments.filter(e => e.checkInStatus !== '未签到').length / enrollments.length) * 100)
+    ? Math.round((enrollments.filter((e: any) => e.checkInStatus !== '未签到').length / enrollments.length) * 100)
     : 0;
   const confirmRate = enrollments.length > 0
-    ? Math.round((enrollments.filter(e => e.paymentStatus === '已确认' || e.paymentStatus === '已减免').length / enrollments.length) * 100)
+    ? Math.round((enrollments.filter((e: any) => e.paymentStatus === '已确认' || e.paymentStatus === '已减免').length / enrollments.length) * 100)
     : 0;
-
   return (
     <AdminLayout>
       <div className="p-6 space-y-6 max-w-5xl">
         <h1 className="text-foreground">统计分析</h1>
-
         {/* KPIs */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
-            { label: '总报名人数', value: enrollments.filter(e => e.status !== '已取消').length, suffix: '人', color: 'text-primary' },
+            { label: '总报名人数', value: enrollments.filter((e: any) => e.status !== '已取消').length, suffix: '人', color: 'text-primary' },
             { label: '已签到率', value: checkinRate, suffix: '%', color: 'text-emerald-600' },
             { label: '收费确认率', value: confirmRate, suffix: '%', color: 'text-accent' },
             { label: '已确认金额', value: `¥${totalRevenue}`, suffix: '', color: 'text-purple-600' },
@@ -82,7 +84,6 @@ export function AdminStatsPage() {
             </div>
           ))}
         </div>
-
         {/* Enrollment by activity */}
         <div className="bg-card rounded-2xl border border-border shadow-sm p-5">
           <h3 className="text-foreground mb-4">各活动报名与签到情况</h3>
@@ -99,7 +100,6 @@ export function AdminStatsPage() {
             </BarChart>
           </ResponsiveContainer>
         </div>
-
         <div className="grid lg:grid-cols-2 gap-4">
           {/* Check-in pie */}
           <div className="bg-card rounded-2xl border border-border shadow-sm p-5">
@@ -114,7 +114,6 @@ export function AdminStatsPage() {
               </PieChart>
             </ResponsiveContainer>
           </div>
-
           {/* Payment pie */}
           <div className="bg-card rounded-2xl border border-border shadow-sm p-5">
             <h3 className="text-foreground mb-4">收费状态分布</h3>
@@ -129,7 +128,6 @@ export function AdminStatsPage() {
             </ResponsiveContainer>
           </div>
         </div>
-
         {/* Trend */}
         <div className="bg-card rounded-2xl border border-border shadow-sm p-5">
           <h3 className="text-foreground mb-4">报名趋势（2026年）</h3>
@@ -143,14 +141,13 @@ export function AdminStatsPage() {
             </LineChart>
           </ResponsiveContainer>
         </div>
-
         {/* Top users */}
         <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-border">
             <h3 className="text-foreground">活跃用户 TOP 5</h3>
           </div>
           <div className="divide-y divide-border">
-            {userActivity.map((u, i) => (
+            {userActivity.map((u: any, i: number) => (
               <div key={u.name} className="flex items-center gap-4 px-5 py-3">
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
                   i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-gray-300 text-white' : i === 2 ? 'bg-orange-300 text-white' : 'bg-muted text-muted-foreground'

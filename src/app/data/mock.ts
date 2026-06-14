@@ -30,7 +30,7 @@ export interface Activity {
   tags: string[];
   createdAt: string;
   isFeatured: boolean;
-  featuredPoster: string;
+  featuredPosters: string[];
   featuredDescription: string;
   images: string[];
   videoUrl: string;
@@ -47,6 +47,14 @@ export interface AppUser {
   registeredAt: string;
   lastLoginAt: string;
   password: string;
+  username?: string;
+}
+
+export interface Participant {
+  name: string;
+  gender: string;
+  age: string;
+  note: string;
 }
 
 export interface Enrollment {
@@ -68,6 +76,7 @@ export interface Enrollment {
   adminNote: string;
   confirmedBy?: string;
   confirmedAt?: string;
+  participants: Participant[];
 }
 
 export const ACTIVITIES: Activity[] = [
@@ -99,7 +108,7 @@ export const ACTIVITIES: Activity[] = [
     tags: ['自然探索', '抄经', '油画', '陶艺', '扎染'],
     createdAt: '2026-05-20',
     isFeatured: true,
-    featuredPoster: '/images/Haibao1.jpg',
+    featuredPosters: ['/images/Haibao1.jpg', '/images/Haibao2.jpg', '/images/Haibao3.jpg', '/images/Haibao4.jpg'],
     featuredDescription: `这个夏天，带孩子走进天目山自然保护区，开启三天两夜的自然探索之旅！
 
 专业自然导师全程带队，深入森林生态讲解，昆虫标本制作、植物拓印、石头彩绘等手工活动精彩纷呈。夜间萤火虫观察，感受山野夜晚的神奇；帐篷露营，亲子共同搭建营地；山泉溪流戏水，感受大自然的纯净。
@@ -133,7 +142,7 @@ export const ACTIVITIES: Activity[] = [
     tags: ['科技', '编程', '创新'],
     createdAt: '2026-05-15',
     isFeatured: false,
-    featuredPoster: '',
+    featuredPosters: [],
     featuredDescription: '',
     images: [],
     videoUrl: '',
@@ -158,7 +167,7 @@ export const ACTIVITIES: Activity[] = [
     tags: ['传统文化', '茶道', '亲子'],
     createdAt: '2026-04-10',
     isFeatured: false,
-    featuredPoster: '',
+    featuredPosters: [],
     featuredDescription: '',
     images: [],
     videoUrl: '',
@@ -183,7 +192,7 @@ export const ACTIVITIES: Activity[] = [
     tags: ['艺术', '绘画', '亲子创作'],
     createdAt: '2026-06-01',
     isFeatured: false,
-    featuredPoster: '',
+    featuredPosters: [],
     featuredDescription: '',
     images: [],
     videoUrl: '',
@@ -208,7 +217,7 @@ export const ACTIVITIES: Activity[] = [
     tags: ['农耕体验', '秋收', '亲子'],
     createdAt: '2026-06-10',
     isFeatured: false,
-    featuredPoster: '',
+    featuredPosters: [],
     featuredDescription: '',
     images: [],
     videoUrl: '',
@@ -227,6 +236,7 @@ export const USERS: AppUser[] = [
     registeredAt: '2025-01-01',
     lastLoginAt: '2026-06-12',
     password: 'admin123',
+    username: 'liangxiaoyunfang',
   },
   {
     id: 'user-001',
@@ -311,6 +321,7 @@ export const ENROLLMENTS: Enrollment[] = [
     adminNote: '参与积极，表现很好',
     confirmedBy: '云房管理员',
     confirmedAt: '2026-05-10 10:00',
+    participants: [],
   },
   {
     id: 'enr-002',
@@ -331,6 +342,7 @@ export const ENROLLMENTS: Enrollment[] = [
     adminNote: '',
     confirmedBy: '云房管理员',
     confirmedAt: '2026-05-10 09:45',
+    participants: [],
   },
   {
     id: 'enr-003',
@@ -351,6 +363,7 @@ export const ENROLLMENTS: Enrollment[] = [
     adminNote: '老学员减免全额',
     confirmedBy: '云房管理员',
     confirmedAt: '2026-05-10 09:00',
+    participants: [],
   },
   // act-002 科技探索日 (已满员)
   {
@@ -368,6 +381,7 @@ export const ENROLLMENTS: Enrollment[] = [
     contactPhone: '13811111111',
     note: '孩子很期待VR体验',
     adminNote: '',
+    participants: [],
   },
   {
     id: 'enr-005',
@@ -386,6 +400,7 @@ export const ENROLLMENTS: Enrollment[] = [
     adminNote: '',
     confirmedBy: '云房管理员',
     confirmedAt: '2026-05-28 10:00',
+    participants: [],
   },
   {
     id: 'enr-006',
@@ -402,6 +417,7 @@ export const ENROLLMENTS: Enrollment[] = [
     contactPhone: '13833333333',
     note: '带两个小朋友参加',
     adminNote: '',
+    participants: [],
   },
   {
     id: 'enr-007',
@@ -420,6 +436,7 @@ export const ENROLLMENTS: Enrollment[] = [
     adminNote: '',
     confirmedBy: '云房管理员',
     confirmedAt: '2026-06-01 09:00',
+    participants: [],
   },
   // act-001 自然探索营 (报名中)
   {
@@ -437,6 +454,7 @@ export const ENROLLMENTS: Enrollment[] = [
     contactPhone: '13811111111',
     note: '希望安排靠近水边的营地',
     adminNote: '',
+    participants: [],
   },
   {
     id: 'enr-009',
@@ -455,6 +473,7 @@ export const ENROLLMENTS: Enrollment[] = [
     adminNote: '',
     confirmedBy: '云房管理员',
     confirmedAt: '2026-06-07 09:00',
+    participants: [],
   },
   {
     id: 'enr-010',
@@ -471,6 +490,7 @@ export const ENROLLMENTS: Enrollment[] = [
     contactPhone: '13833333333',
     note: '',
     adminNote: '',
+    participants: [],
   },
   // act-004 绘画工坊 (报名中)
   {
@@ -488,6 +508,7 @@ export const ENROLLMENTS: Enrollment[] = [
     contactPhone: '13833333333',
     note: '孩子喜欢水彩画',
     adminNote: '',
+    participants: [],
   },
   {
     id: 'enr-012',
@@ -504,5 +525,6 @@ export const ENROLLMENTS: Enrollment[] = [
     contactPhone: '13844444444',
     note: '',
     adminNote: '',
+    participants: [],
   },
 ];

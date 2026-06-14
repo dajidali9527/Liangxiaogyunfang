@@ -1,6 +1,14 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
-import { AppUser, Enrollment, Activity, ACTIVITIES, USERS, ENROLLMENTS } from '../data/mock';
-
+import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import { AppUser, Enrollment, Activity } from '../data/mock';
+import { getToken, setToken, removeToken } from '../api/client';
+import { loginApi, registerApi, getMeApi, logoutApi, changePasswordApi, AuthUser } from '../api/auth.api';
+import { getActivitiesApi, getActivityApi, createActivityApi, updateActivityApi } from '../api/activity.api';
+import { enrollApi, getMyEnrollmentsApi, getEnrollmentApi, updateEnrollmentApi } from '../api/enrollment.api';
+import {
+  getDashboardApi, getUsersApi, updateUserApi, resetPasswordApi,
+  getAdminEnrollmentsApi, manualEnrollApi, checkInApi, paymentApi,
+  removeEnrollmentApi, getStatsApi,
+} from '../api/admin.api';
 export type Route =
   | { page: 'home' }
   | { page: 'activity-detail'; id: string }
@@ -14,29 +22,35 @@ export type Route =
   | { page: 'admin-activity-detail'; activityId: string }
   | { page: 'admin-users' }
   | { page: 'admin-stats' };
-
 interface AppState {
   currentUser: AppUser | null;
   route: Route;
   activities: Activity[];
   users: AppUser[];
   enrollments: Enrollment[];
+  loading: boolean;
   navigate: (r: Route) => void;
-  login: (phone: string, password: string) => { success: boolean; message: string };
+  login: (phone: string, password: string) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
-  register: (data: RegisterData) => { success: boolean; message: string };
-  enroll: (activityId: string, data: EnrollData) => { success: boolean; message: string; autoCreated?: boolean; password?: string };
-  updateCheckIn: (enrollmentId: string, status: Enrollment['checkInStatus'], time?: string) => void;
-  updatePayment: (enrollmentId: string, status: Enrollment['paymentStatus'], note?: string) => void;
-  updateEnrollment: (enrollmentId: string, updates: Partial<Enrollment>) => void;
-  updateActivity: (activityId: string, updates: Partial<Activity>) => void;
-  updateUser: (userId: string, updates: Partial<AppUser>) => void;
-  addActivity: (activity: Activity) => void;
-  manualEnroll: (activityId: string, data: ManualEnrollData) => { success: boolean; message: string };
-  removeEnrollment: (enrollmentId: string) => void;
-  findOrCreateUserByPhone: (phone: string, name: string) => AppUser;
+  register: (data: RegisterData) => Promise<{ success: boolean; message: string }>;
+  enroll: (activityId: string, data: EnrollData) => Promise<{ success: boolean; message: string; autoCreated?: boolean; password?: string }>;
+  updateCheckIn: (enrollmentId: string, status: Enrollment['checkInStatus'], time?: string) => Promise<void>;
+  updatePayment: (enrollmentId: string, status: Enrollment['paymentStatus'], note?: string) => Promise<void>;
+  updateEnrollment: (enrollmentId: string, updates: Partial<Enrollment>) => Promise<void>;
+  updateActivity: (activityId: string, updates: Partial<Activity>) => Promise<void>;
+  updateUser: (userId: string, updates: Partial<AppUser>) => Promise<void>;
+  addActivity: (activity: Activity) => Promise<void>;
+  manualEnroll: (activityId: string, data: ManualEnrollData) => Promise<{ success: boolean; message: string }>;
+  removeEnrollment: (enrollmentId: string) => Promise<void>;
+  fetchActivities: () => Promise<void>;
+  fetchMyEnrollments: () => Promise<void>;
+  fetchAdminEnrollments: (activityId: string) => Promise<void>;
+  fetchUsers: (search?: string) => Promise<void>;
+  fetchDashboard: () => Promise<any>;
+  fetchStats: () => Promise<any>;
+  changePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
+  resetPassword: (userId: string) => Promise<{ success: boolean; message: string }>;
 }
-
 export interface RegisterData {
   name: string;
   phone: string;
@@ -44,15 +58,20 @@ export interface RegisterData {
   password: string;
   nickname?: string;
 }
-
+export interface Participant {
+  name: string;
+  gender: string;
+  age: string;
+  note: string;
+}
 export interface EnrollData {
   adults: number;
   children: number;
   contactName: string;
   contactPhone: string;
   note: string;
+  participants: Participant[];
 }
-
 export interface ManualEnrollData {
   contactName: string;
   contactPhone: string;
@@ -61,209 +80,212 @@ export interface ManualEnrollData {
   amount: number;
   note?: string;
 }
-
+function mapAuthUserToAppUser(u: AuthUser): AppUser {
+  return {
+    id: u.id,
+    name: u.name || '',
+    nickname: u.nickname || '',
+    phone: u.phone || '',
+    email: u.email || '',
+    role: (u.role as any) || 'user',
+    status: (u.status as any) || 'active',
+    registeredAt: u.registeredAt || '',
+    lastLoginAt: u.lastLoginAt || '',
+    password: '',
+    username: u.username,
+  };
+}
 const AppContext = createContext<AppState | null>(null);
-
 export function AppProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [route, setRoute] = useState<Route>({ page: 'home' });
-  const [activities, setActivities] = useState<Activity[]>(ACTIVITIES);
-  const [users, setUsers] = useState<AppUser[]>(USERS);
-  const [enrollments, setEnrollments] = useState<Enrollment[]>(ENROLLMENTS);
-
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [users, setUsers] = useState<AppUser[]>([]);
+  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [loading, setLoading] = useState(true);
   const navigate = (r: Route) => {
     setRoute(r);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-
-  const login = (phone: string, password: string) => {
-    const user = users.find(u => u.phone === phone && u.password === password);
-    if (!user) return { success: false, message: '手机号或密码错误' };
-    if (user.status === 'disabled') return { success: false, message: '账号已被禁用，请联系管理员' };
-    setCurrentUser(user);
-    return { success: true, message: '登录成功' };
+  // 初始化：恢复登录态 + 加载活动列表
+  useEffect(() => {
+    (async () => {
+      const token = getToken();
+      if (token) {
+        const res = await getMeApi();
+        if (res.success && res.data) {
+          setCurrentUser(mapAuthUserToAppUser(res.data));
+        } else {
+          removeToken();
+        }
+      }
+      const actRes = await getActivitiesApi();
+      if (actRes.success && actRes.data) {
+        setActivities(actRes.data as Activity[]);
+      }
+      setLoading(false);
+    })();
+  }, []);
+  const fetchActivities = useCallback(async () => {
+    const res = await getActivitiesApi();
+    if (res.success && res.data) {
+      setActivities(res.data as Activity[]);
+    }
+  }, []);
+  const fetchMyEnrollments = useCallback(async () => {
+    const res = await getMyEnrollmentsApi();
+    if (res.success && res.data) {
+      setEnrollments(res.data as Enrollment[]);
+    }
+  }, []);
+  const fetchAdminEnrollments = useCallback(async (activityId: string) => {
+    const res = await getAdminEnrollmentsApi(activityId);
+    if (res.success && res.data) {
+      setEnrollments(res.data as Enrollment[]);
+    }
+  }, []);
+  const fetchUsers = useCallback(async (search?: string) => {
+    const res = await getUsersApi(search);
+    if (res.success && res.data) {
+      setUsers(res.data as AppUser[]);
+    }
+  }, []);
+  const fetchDashboard = useCallback(async () => {
+    const res = await getDashboardApi();
+    return res.data;
+  }, []);
+  const fetchStats = useCallback(async () => {
+    const res = await getStatsApi();
+    return res.data;
+  }, []);
+  const login = async (phoneOrUsername: string, password: string) => {
+    const res = await loginApi(phoneOrUsername, password);
+    if (res.success && res.data) {
+      setCurrentUser(mapAuthUserToAppUser(res.data.user));
+      return { success: true, message: '登录成功' };
+    }
+    return { success: false, message: res.message || '登录失败' };
   };
-
   const logout = () => {
+    logoutApi();
     setCurrentUser(null);
+    setEnrollments([]);
     navigate({ page: 'home' });
   };
-
-  const register = (data: RegisterData) => {
-    const exists = users.find(u => u.phone === data.phone || (data.email && u.email === data.email));
-    if (exists) return { success: false, message: '该手机号或邮箱已注册' };
-    const newUser: AppUser = {
-      id: `user-${Date.now()}`,
-      name: data.name,
-      nickname: data.nickname || data.name,
+  const register = async (data: RegisterData) => {
+    const res = await registerApi({
       phone: data.phone,
-      email: data.email,
-      role: 'user',
-      status: 'active',
-      registeredAt: new Date().toISOString().split('T')[0],
-      lastLoginAt: new Date().toISOString().split('T')[0],
       password: data.password,
-    };
-    setUsers(prev => [...prev, newUser]);
-    setCurrentUser(newUser);
-    return { success: true, message: '注册成功' };
+      nickname: data.nickname,
+      email: data.email || undefined,
+    });
+    if (res.success && res.data) {
+      setCurrentUser(mapAuthUserToAppUser(res.data.user));
+      return { success: true, message: '注册成功' };
+    }
+    return { success: false, message: res.message || '注册失败' };
   };
-
-  const findOrCreateUserByPhone = (phone: string, name: string) => {
-    const existing = users.find(u => u.phone === phone);
-    if (existing) return existing;
-    const defaultPassword = phone.slice(-6);
-    const newUser: AppUser = {
-      id: `user-${Date.now()}`,
-      name: name || phone,
-      nickname: name || phone,
-      phone,
-      email: '',
-      role: 'user',
-      status: 'active',
-      registeredAt: new Date().toISOString().split('T')[0],
-      lastLoginAt: new Date().toISOString().split('T')[0],
-      password: defaultPassword,
-    };
-    setUsers(prev => [...prev, newUser]);
-    return newUser;
-  };
-
-  const enroll = (activityId: string, data: EnrollData) => {
-    const activity = activities.find(a => a.id === activityId);
-    if (!activity) return { success: false, message: '活动不存在' };
-    if (activity.status === '已关闭' || activity.status === '已结束') {
-      return { success: false, message: '活动已关闭，无法报名' };
-    }
-    if (activity.enrolled >= activity.capacity) {
-      return { success: false, message: '活动名额已满' };
-    }
-    // 自动创建账号：根据手机号查找或创建用户
-    let user = currentUser;
-    let autoCreated = false;
-    let autoPassword = '';
-    if (!user) {
-      user = findOrCreateUserByPhone(data.contactPhone, data.contactName);
-      autoCreated = true;
-      autoPassword = data.contactPhone.slice(-6);
-      setCurrentUser(user);
-    }
-    const existing = enrollments.find(
-      e => e.activityId === activityId && e.userId === user!.id && e.status !== '已取消' && e.status !== '已移除'
-    );
-    if (existing) return { success: false, message: '您已报名此活动' };
-
-    const amount = activity.price * (data.adults + data.children * 0.5);
-    const newEnrollment: Enrollment = {
-      id: `enr-${Date.now()}`,
+  const enroll = async (activityId: string, data: EnrollData) => {
+    const res = await enrollApi({
       activityId,
-      userId: user.id,
-      enrolledAt: new Date().toLocaleString('zh-CN'),
-      status: '已报名',
-      checkInStatus: '未签到',
-      paymentStatus: '未确认',
-      amount,
+      contactPhone: data.contactPhone,
+      contactName: data.contactName || undefined,
       adults: data.adults,
       children: data.children,
-      contactName: data.contactName,
-      contactPhone: data.contactPhone,
-      note: data.note,
-      adminNote: '',
-    };
-    setEnrollments(prev => [...prev, newEnrollment]);
-    setActivities(prev => prev.map(a => a.id === activityId ? { ...a, enrolled: a.enrolled + 1 } : a));
-    return { success: true, message: '报名成功！', autoCreated, password: autoCreated ? autoPassword : undefined };
+      note: data.note || undefined,
+      participants: data.participants,
+    });
+    if (res.success && res.data) {
+      setCurrentUser(mapAuthUserToAppUser(res.data.user));
+      await fetchActivities();
+      return {
+        success: true,
+        message: '报名成功！',
+        autoCreated: res.data.autoCreated,
+        password: res.data.password,
+      };
+    }
+    return { success: false, message: res.message || '报名失败' };
   };
-
-  const manualEnroll = (activityId: string, data: ManualEnrollData) => {
-    const activity = activities.find(a => a.id === activityId);
-    if (!activity) return { success: false, message: '活动不存在' };
-    const user = findOrCreateUserByPhone(data.contactPhone, data.contactName);
-    const existing = enrollments.find(
-      e => e.activityId === activityId && e.userId === user.id && e.status !== '已取消' && e.status !== '已移除'
-    );
-    if (existing) return { success: false, message: '该用户已报名此活动' };
-    const newEnrollment: Enrollment = {
-      id: `enr-${Date.now()}`,
+  const manualEnroll = async (activityId: string, data: ManualEnrollData) => {
+    const res = await manualEnrollApi({
       activityId,
-      userId: user.id,
-      enrolledAt: new Date().toLocaleString('zh-CN'),
-      status: '已报名',
-      checkInStatus: '未签到',
-      paymentStatus: '未确认',
+      contactPhone: data.contactPhone,
+      contactName: data.contactName || undefined,
+      adults: data.adults,
+      children: data.children,
       amount: data.amount,
-      adults: data.adults,
-      children: data.children,
-      contactName: data.contactName,
-      contactPhone: data.contactPhone,
-      note: data.note || '',
-      adminNote: '管理员后台报名',
-    };
-    setEnrollments(prev => [...prev, newEnrollment]);
-    setActivities(prev => prev.map(a => a.id === activityId ? { ...a, enrolled: a.enrolled + 1 } : a));
-    return { success: true, message: '添加成功' };
+      note: data.note || undefined,
+    });
+    if (res.success) {
+      await fetchActivities();
+      return { success: true, message: '添加成功' };
+    }
+    return { success: false, message: res.message || '添加失败' };
   };
-
-  const removeEnrollment = (enrollmentId: string) => {
+  const removeEnrollmentFn = async (enrollmentId: string) => {
+    await removeEnrollmentApi(enrollmentId);
     setEnrollments(prev => prev.map(e => e.id === enrollmentId ? { ...e, status: '已移除' as const } : e));
   };
-
-  const updateCheckIn = (enrollmentId: string, status: Enrollment['checkInStatus'], time?: string) => {
-    setEnrollments(prev => prev.map(e =>
-      e.id === enrollmentId
-        ? {
-            ...e,
-            checkInStatus: status,
-            checkInTime: status === '已签到' ? (time || new Date().toLocaleString('zh-CN')) : e.checkInTime,
-            checkOutTime: status === '已离场' ? (time || new Date().toLocaleString('zh-CN')) : e.checkOutTime,
-          }
-        : e
-    ));
+  const updateCheckIn = async (enrollmentId: string, status: Enrollment['checkInStatus'], time?: string) => {
+    const res = await checkInApi(enrollmentId, status, time);
+    if (res.success && res.data) {
+      setEnrollments(prev => prev.map(e => e.id === enrollmentId ? { ...e, ...res.data } : e));
+    }
   };
-
-  const updatePayment = (enrollmentId: string, status: Enrollment['paymentStatus'], note?: string) => {
-    setEnrollments(prev => prev.map(e =>
-      e.id === enrollmentId
-        ? {
-            ...e,
-            paymentStatus: status,
-            adminNote: note !== undefined ? note : e.adminNote,
-            confirmedBy: currentUser?.name,
-            confirmedAt: new Date().toLocaleString('zh-CN'),
-          }
-        : e
-    ));
+  const updatePayment = async (enrollmentId: string, status: Enrollment['paymentStatus'], note?: string) => {
+    const res = await paymentApi(enrollmentId, status, note);
+    if (res.success && res.data) {
+      setEnrollments(prev => prev.map(e => e.id === enrollmentId ? { ...e, ...res.data } : e));
+    }
   };
-
-  const updateEnrollment = (enrollmentId: string, updates: Partial<Enrollment>) => {
-    setEnrollments(prev => prev.map(e => e.id === enrollmentId ? { ...e, ...updates } : e));
+  const updateEnrollment = async (enrollmentId: string, updates: Partial<Enrollment>) => {
+    const res = await updateEnrollmentApi(enrollmentId, updates);
+    if (res.success && res.data) {
+      setEnrollments(prev => prev.map(e => e.id === enrollmentId ? { ...e, ...res.data } : e));
+    }
   };
-
-  const updateActivity = (activityId: string, updates: Partial<Activity>) => {
-    setActivities(prev => prev.map(a => a.id === activityId ? { ...a, ...updates } : a));
+  const updateActivity = async (activityId: string, updates: Partial<Activity>) => {
+    const res = await updateActivityApi(activityId, updates);
+    if (res.success && res.data) {
+      setActivities(prev => prev.map(a => a.id === activityId ? { ...a, ...res.data } : a));
+    }
   };
-
-  const updateUser = (userId: string, updates: Partial<AppUser>) => {
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updates } : u));
+  const updateUser = async (userId: string, updates: Partial<AppUser>) => {
+    const res = await updateUserApi(userId, updates);
+    if (res.success && res.data) {
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...res.data } : u));
+    }
   };
-
-  const addActivity = (activity: Activity) => {
-    setActivities(prev => [activity, ...prev]);
+  const addActivity = async (activity: Activity) => {
+    const res = await createActivityApi(activity);
+    if (res.success && res.data) {
+      setActivities(prev => [res.data as Activity, ...prev]);
+    }
   };
-
+  const changePassword = async (oldPassword: string, newPassword: string) => {
+    const res = await changePasswordApi(oldPassword, newPassword);
+    return { success: res.success, message: res.message || '密码修改成功' };
+  };
+  const resetPassword = async (userId: string) => {
+    const res = await resetPasswordApi(userId);
+    return { success: res.success, message: res.message || '重置成功' };
+  };
   return (
     <AppContext.Provider value={{
-      currentUser, route, activities, users, enrollments,
+      currentUser, route, activities, users, enrollments, loading,
       navigate, login, logout, register, enroll,
       updateCheckIn, updatePayment, updateEnrollment,
       updateActivity, updateUser, addActivity,
-      manualEnroll, removeEnrollment, findOrCreateUserByPhone,
+      manualEnroll, removeEnrollment: removeEnrollmentFn,
+      fetchActivities, fetchMyEnrollments, fetchAdminEnrollments,
+      fetchUsers, fetchDashboard, fetchStats,
+      changePassword, resetPassword,
     }}>
       {children}
     </AppContext.Provider>
   );
 }
-
 export function useApp() {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('useApp must be used within AppProvider');

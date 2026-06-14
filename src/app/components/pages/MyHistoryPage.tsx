@@ -1,10 +1,14 @@
+import { useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Header } from '../shared/Header';
 import { StatusBadge } from '../shared/StatusBadge';
 import { ArrowLeft, Calendar, MapPin, Users, CheckCircle, Clock, FileText, LogOut } from 'lucide-react';
 
 export function MyHistoryPage() {
-  const { currentUser, enrollments, activities, navigate } = useApp();
+  const { currentUser, enrollments, activities, navigate, fetchMyEnrollments } = useApp();
+  useEffect(() => {
+    if (currentUser) fetchMyEnrollments();
+  }, [currentUser]);
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-background">

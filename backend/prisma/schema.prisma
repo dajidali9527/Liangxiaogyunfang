@@ -1,0 +1,96 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String   @default("")
+  nickname     String   @default("")
+  phone        String   @unique
+  email        String   @default("")
+  username     String?
+  password     String
+  role         String   @default("user") // user | admin
+  status       String   @default("active") // active | disabled
+  registeredAt DateTime @default(now()) @map("registered_at")
+  lastLoginAt  DateTime @default(now()) @map("last_login_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  enrollments  Enrollment[]
+
+  @@map("users")
+}
+
+model Activity {
+  id                 String   @id @default(cuid())
+  name               String
+  status             String   @default("报名中") // 报名中 | 已满员 | 已结束 | 已关闭 | 草稿
+  startDate          String   @map("start_date")
+  endDate            String   @map("end_date")
+  location           String
+  price              Float    @default(0)
+  capacity           Int      @default(0)
+  enrolled           Int      @default(0)
+  enrollDeadline     String   @map("enroll_deadline")
+  enrollStartDate    String   @map("enroll_start_date")
+  description        Json     @default("[]") // ContentBlock[]
+  imageUrl           String   @default("") @map("image_url")
+  payee              String   @default("")
+  tags               Json     @default("[]") // string[]
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  isFeatured         Boolean  @default(false) @map("is_featured")
+  featuredPoster     String   @default("") @map("featured_poster")
+  featuredDescription String  @default("") @map("featured_description")
+  featuredPosters    Json     @default("[]") @map("featured_posters") // string[]
+  images             Json     @default("[]") // string[]
+  videoUrl           String   @default("") @map("video_url")
+  enrollments        Enrollment[]
+
+  @@map("activities")
+}
+
+model Enrollment {
+  id             String   @id @default(cuid())
+  activityId     String   @map("activity_id")
+  userId         String   @map("user_id")
+  enrolledAt     DateTime @default(now()) @map("enrolled_at")
+  status         String   @default("已报名") // 已报名 | 已取消 | 已移除 | 已完成
+  checkInStatus  String   @default("未签到") @map("check_in_status") // 未签到 | 已签到 | 已离场
+  paymentStatus  String   @default("未确认") @map("payment_status") // 未确认 | 已确认 | 已减免 | 已退款
+  checkInTime    String?  @map("check_in_time")
+  checkOutTime   String?  @map("check_out_time")
+  amount         Float    @default(0)
+  adults         Int      @default(1)
+  children       Int      @default(0)
+  contactName    String   @default("") @map("contact_name")
+  contactPhone   String   @map("contact_phone")
+  note           String   @default("")
+  adminNote      String   @default("") @map("admin_note")
+  confirmedBy    String?  @map("confirmed_by")
+  confirmedAt    String?  @map("confirmed_at")
+  participants   Json     @default("[]") // Participant[]
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  activity       Activity @relation(fields: [activityId], references: [id])
+  user           User     @relation(fields: [userId], references: [id])
+
+  @@map("enrollments")
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  action     String
+  entity     String
+  entityId   String   @map("entity_id")
+  userId     String?  @map("user_id")
+  detail     Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("activity_logs")
+}

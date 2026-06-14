@@ -1,10 +1,38 @@
 import { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { LogOut, User, Menu, X, LayoutDashboard } from 'lucide-react';
+import { LogOut, User, Menu, X, LayoutDashboard, KeyRound } from 'lucide-react';
 
 export function Header() {
-  const { currentUser, navigate, logout } = useApp();
+  const { currentUser, navigate, logout, changePassword } = useApp();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showPwdModal, setShowPwdModal] = useState(false);
+  const [pwdForm, setPwdForm] = useState({ old: '', new: '', confirm: '' });
+  const [pwdMsg, setPwdMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const handleChangePwd = async () => {
+    if (!pwdForm.old || !pwdForm.new || !pwdForm.confirm) {
+      setPwdMsg({ ok: false, text: '请填写完整' });
+      return;
+    }
+    if (pwdForm.new !== pwdForm.confirm) {
+      setPwdMsg({ ok: false, text: '两次新密码不一致' });
+      return;
+    }
+    if (pwdForm.new.length < 6) {
+      setPwdMsg({ ok: false, text: '新密码至少6位' });
+      return;
+    }
+    const result = await changePassword(pwdForm.old, pwdForm.new);
+    if (result.success) {
+      setPwdMsg({ ok: true, text: '密码修改成功' });
+      setTimeout(() => {
+        setShowPwdModal(false);
+        setPwdForm({ old: '', new: '', confirm: '' });
+        setPwdMsg(null);
+      }, 1200);
+    } else {
+      setPwdMsg({ ok: false, text: result.message });
+    }
+  };
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-border shadow-sm">
@@ -52,6 +80,13 @@ export function Header() {
                   <User size={15} className="text-muted-foreground" />
                   我的报名
                 </button>
+                <button
+                  onClick={() => { setShowPwdModal(true); setMenuOpen(false); }}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+                >
+                  <KeyRound size={15} className="text-muted-foreground" />
+                  修改密码
+                </button>
                 <div className="border-t border-border my-1" />
                 <button
                   onClick={() => { logout(); setMenuOpen(false); }}
@@ -67,15 +102,9 @@ export function Header() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => navigate({ page: 'login' })}
-              className="px-3 py-1.5 text-sm text-primary hover:bg-secondary rounded-lg transition-colors"
-            >
-              登录
-            </button>
-            <button
-              onClick={() => navigate({ page: 'register' })}
               className="px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
             >
-              注册
+              登录
             </button>
           </div>
         )}
@@ -83,6 +112,56 @@ export function Header() {
 
       {menuOpen && (
         <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
+      )}
+
+      {/* 修改密码弹框 */}
+      {showPwdModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40" onClick={() => { setShowPwdModal(false); setPwdMsg(null); }} />
+          <div className="relative bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="text-foreground mb-4">修改密码</h3>
+            <div className="space-y-3">
+              <input
+                type="password"
+                className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                placeholder="原密码"
+                value={pwdForm.old}
+                onChange={e => setPwdForm({ ...pwdForm, old: e.target.value })}
+              />
+              <input
+                type="password"
+                className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                placeholder="新密码（至少6位）"
+                value={pwdForm.new}
+                onChange={e => setPwdForm({ ...pwdForm, new: e.target.value })}
+              />
+              <input
+                type="password"
+                className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                placeholder="确认新密码"
+                value={pwdForm.confirm}
+                onChange={e => setPwdForm({ ...pwdForm, confirm: e.target.value })}
+              />
+            </div>
+            {pwdMsg && (
+              <p className={`mt-3 text-sm ${pwdMsg.ok ? 'text-emerald-600' : 'text-destructive'}`}>{pwdMsg.text}</p>
+            )}
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => { setShowPwdModal(false); setPwdForm({ old: '', new: '', confirm: '' }); setPwdMsg(null); }}
+                className="flex-1 py-2.5 rounded-xl border border-border text-foreground text-sm hover:bg-muted"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleChangePwd}
+                className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90"
+              >
+                确认修改
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </header>
   );

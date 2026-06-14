@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AdminLayout } from './AdminLayout';
 import { StatusBadge } from '../shared/StatusBadge';
-import { Plus, Search, Calendar, MapPin, Users, ChevronRight, X, Edit2, Star } from 'lucide-react';
+import { Plus, Search, Calendar, MapPin, Users, ChevronRight, X, Edit2, Star, Upload, Link } from 'lucide-react';
 import { Activity, ActivityStatus } from '../../data/mock';
 
 type FormData = Omit<Activity, 'id' | 'enrolled' | 'createdAt'>;
@@ -22,11 +22,55 @@ const INITIAL_FORM: FormData = {
   payee: '两小云房',
   tags: [],
   isFeatured: false,
-  featuredPoster: '',
+  featuredPosters: [],
   featuredDescription: '',
   images: [],
   videoUrl: '',
 };
+
+// 图片输入组件：支持上传和外链
+function ImageInput({ value, onChange, label }: {
+  value: string;
+  onChange: (v: string) => void;
+  label: string;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      onChange(ev.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+  return (
+    <div>
+      <label className="block text-sm text-foreground mb-1.5">{label}</label>
+      <div className="flex gap-2">
+        <input
+          className="flex-1 px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder="输入图片外链URL"
+        />
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          className="flex items-center gap-1.5 px-3 py-2.5 bg-secondary text-foreground rounded-xl text-sm hover:bg-muted shrink-0"
+        >
+          <Upload size={13} /> 上传
+        </button>
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+      </div>
+      {value && (
+        <div className="mt-2 w-20 h-20 rounded-xl overflow-hidden border border-border bg-muted">
+          <img src={value} alt="预览" className="w-full h-full object-cover" />
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function AdminActivitiesPage() {
   const { activities, enrollments, navigate, updateActivity, addActivity } = useApp();
@@ -36,7 +80,10 @@ export function AdminActivitiesPage() {
   const [form, setForm] = useState<FormData>(INITIAL_FORM);
   const [tagInput, setTagInput] = useState('');
   const [imageInput, setImageInput] = useState('');
+  const [posterInput, setPosterInput] = useState('');
   const [formError, setFormError] = useState('');
+  const galleryFileRef = useRef<HTMLInputElement>(null);
+  const posterFileRef = useRef<HTMLInputElement>(null);
 
   const filtered = activities.filter(a =>
     !search || a.name.includes(search) || a.location.includes(search)
@@ -49,6 +96,7 @@ export function AdminActivitiesPage() {
     setForm(INITIAL_FORM);
     setTagInput('');
     setImageInput('');
+    setPosterInput('');
     setFormError('');
     setShowForm(true);
   };
@@ -60,19 +108,19 @@ export function AdminActivitiesPage() {
       location: a.location, price: a.price, capacity: a.capacity,
       enrollDeadline: a.enrollDeadline, enrollStartDate: a.enrollStartDate,
       description: a.description, imageUrl: a.imageUrl, payee: a.payee, tags: [...a.tags],
-      isFeatured: a.isFeatured, featuredPoster: a.featuredPoster, featuredDescription: a.featuredDescription,
+      isFeatured: a.isFeatured, featuredPosters: [...a.featuredPosters], featuredDescription: a.featuredDescription,
       images: [...a.images], videoUrl: a.videoUrl,
     });
     setTagInput('');
     setImageInput('');
+    setPosterInput('');
     setFormError('');
     setShowForm(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name || !form.startDate || !form.location) return;
     setFormError('');
-    // 校验专题活动唯一性
     if (form.isFeatured && form.status === '报名中') {
       const existingFeatured = activities.find(a =>
         a.isFeatured && a.status === '报名中' && a.id !== editingId
@@ -83,9 +131,9 @@ export function AdminActivitiesPage() {
       }
     }
     if (editingId) {
-      updateActivity(editingId, form);
+      await updateActivity(editingId, form);
     } else {
-      addActivity({
+      await addActivity({
         ...form,
         id: `act-${Date.now()}`,
         enrolled: 0,
@@ -95,9 +143,9 @@ export function AdminActivitiesPage() {
     setShowForm(false);
   };
 
-  const handleClose = (id: string) => {
-    if (confirm('确定要关闭此活动？关闭后用户将无法继续报名。')) {
-      updateActivity(id, { status: '已关闭' });
+  const handleClose = async (id: string) => {
+    if (confirm('确定要关闭此活动？\n\n关闭后：\n· 用户无法继续报名\n· 无法进行签到操作\n· 无法进行收费确认\n\n此操作不可撤销，请确认。')) {
+      await updateActivity(id, { status: '已关闭' });
     }
   };
 
@@ -111,11 +159,46 @@ export function AdminActivitiesPage() {
     }
   };
 
-  const addImage = () => {
+  const addImageByUrl = () => {
     if (imageInput.trim() && !form.images.includes(imageInput.trim())) {
       setForm(p => ({ ...p, images: [...p.images, imageInput.trim()] }));
       setImageInput('');
     }
+  };
+
+  const addImageByFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const dataUrl = ev.target?.result as string;
+        setForm(p => ({ ...p, images: [...p.images, dataUrl] }));
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
+  };
+
+  const addPosterByUrl = () => {
+    if (posterInput.trim() && !form.featuredPosters.includes(posterInput.trim())) {
+      setForm(p => ({ ...p, featuredPosters: [...p.featuredPosters, posterInput.trim()] }));
+      setPosterInput('');
+    }
+  };
+
+  const addPosterByFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const dataUrl = ev.target?.result as string;
+        setForm(p => ({ ...p, featuredPosters: [...p.featuredPosters, dataUrl] }));
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = '';
   };
 
   const STATUS_OPTIONS: ActivityStatus[] = ['草稿', '报名中', '已满员', '已关闭', '已结束'];
@@ -245,23 +328,39 @@ export function AdminActivitiesPage() {
                   {form.isFeatured && (
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-xs text-foreground mb-1">专题活动海报URL</label>
-                        <input
-                          className="w-full px-3 py-2 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                          value={form.featuredPoster}
-                          onChange={set('featuredPoster')}
-                          placeholder="https://..."
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-foreground mb-1">专题图文介绍</label>
-                        <textarea
-                          className="w-full px-3 py-2 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30 resize-none"
-                          rows={4}
-                          value={form.featuredDescription}
-                          onChange={set('featuredDescription')}
-                          placeholder="输入专题活动的详细介绍..."
-                        />
+                        <label className="block text-xs text-foreground mb-1">专题活动海报</label>
+                        <div className="flex gap-2 mb-2 flex-wrap">
+                          {form.featuredPosters.map((img, i) => (
+                            <div key={i} className="relative w-16 h-16 rounded-xl overflow-hidden border border-border bg-muted group">
+                              <img src={img} alt={`海报${i + 1}`} className="w-full h-full object-cover" />
+                              <button
+                                onClick={() => setForm(p => ({ ...p, featuredPosters: p.featuredPosters.filter((_, idx) => idx !== i) }))}
+                                className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/50 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <X size={10} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            className="flex-1 px-3 py-2 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                            value={posterInput}
+                            onChange={e => setPosterInput(e.target.value)}
+                            placeholder="输入图片URL后按添加"
+                            onKeyDown={e => e.key === 'Enter' && addPosterByUrl()}
+                          />
+                          <button onClick={addPosterByUrl} className="flex items-center gap-1 px-3 py-2 bg-secondary text-foreground rounded-xl text-sm hover:bg-muted shrink-0">
+                            <Link size={13} /> 外链
+                          </button>
+                          <button
+                            onClick={() => posterFileRef.current?.click()}
+                            className="flex items-center gap-1 px-3 py-2 bg-secondary text-foreground rounded-xl text-sm hover:bg-muted shrink-0"
+                          >
+                            <Upload size={13} /> 上传
+                          </button>
+                          <input ref={posterFileRef} type="file" accept="image/*" multiple className="hidden" onChange={addPosterByFile} />
+                        </div>
                       </div>
                     </div>
                   )}
@@ -290,31 +389,30 @@ export function AdminActivitiesPage() {
                     <input type="date" className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30" value={form.enrollDeadline} onChange={set('enrollDeadline')} />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm text-foreground mb-1.5">人均价格（元）</label>
-                    <input type="number" className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30" value={form.price} onChange={set('price')} />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-foreground mb-1.5">人数上限</label>
-                    <input type="number" className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30" value={form.capacity} onChange={set('capacity')} />
-                  </div>
-                </div>
                 <div>
-                  <label className="block text-sm text-foreground mb-1.5">封面图URL</label>
-                  <input className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30" value={form.imageUrl} onChange={set('imageUrl')} placeholder="https://..." />
+                  <label className="block text-sm text-foreground mb-1.5">人数上限</label>
+                  <input type="number" className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30" value={form.capacity} onChange={set('capacity')} />
                 </div>
+                {/* 封面图 */}
+                <ImageInput
+                  label="封面图"
+                  value={form.imageUrl}
+                  onChange={v => setForm(p => ({ ...p, imageUrl: v }))}
+                />
                 {/* 活动图集 */}
                 <div>
                   <label className="block text-sm text-foreground mb-1.5">活动图集</label>
                   <div className="flex gap-2 mb-2 flex-wrap">
                     {form.images.map((img, i) => (
-                      <span key={i} className="flex items-center gap-1 px-2 py-0.5 bg-secondary rounded-full text-xs max-w-[200px]">
-                        <span className="truncate">{img.split('/').pop()}</span>
-                        <button onClick={() => setForm(p => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }))} className="text-muted-foreground hover:text-foreground shrink-0">
-                          <X size={11} />
+                      <div key={i} className="relative w-16 h-16 rounded-xl overflow-hidden border border-border bg-muted group">
+                        <img src={img} alt={`图集${i + 1}`} className="w-full h-full object-cover" />
+                        <button
+                          onClick={() => setForm(p => ({ ...p, images: p.images.filter((_, idx) => idx !== i) }))}
+                          className="absolute top-0.5 right-0.5 w-4 h-4 bg-black/50 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X size={10} />
                         </button>
-                      </span>
+                      </div>
                     ))}
                   </div>
                   <div className="flex gap-2">
@@ -323,9 +421,18 @@ export function AdminActivitiesPage() {
                       value={imageInput}
                       onChange={e => setImageInput(e.target.value)}
                       placeholder="输入图片URL后按添加"
-                      onKeyDown={e => e.key === 'Enter' && addImage()}
+                      onKeyDown={e => e.key === 'Enter' && addImageByUrl()}
                     />
-                    <button onClick={addImage} className="px-3 py-2 bg-secondary text-foreground rounded-xl text-sm hover:bg-muted">添加</button>
+                    <button onClick={addImageByUrl} className="flex items-center gap-1 px-3 py-2 bg-secondary text-foreground rounded-xl text-sm hover:bg-muted shrink-0">
+                      <Link size={13} /> 外链
+                    </button>
+                    <button
+                      onClick={() => galleryFileRef.current?.click()}
+                      className="flex items-center gap-1 px-3 py-2 bg-secondary text-foreground rounded-xl text-sm hover:bg-muted shrink-0"
+                    >
+                      <Upload size={13} /> 上传
+                    </button>
+                    <input ref={galleryFileRef} type="file" accept="image/*" multiple className="hidden" onChange={addImageByFile} />
                   </div>
                 </div>
                 {/* 视频链接 */}
@@ -335,12 +442,8 @@ export function AdminActivitiesPage() {
                     className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30"
                     value={form.videoUrl}
                     onChange={set('videoUrl')}
-                    placeholder="B站/YouTube嵌入链接或外链"
+                    placeholder="B站/YouTube嵌入链接或外链，留空则不显示"
                   />
-                </div>
-                <div>
-                  <label className="block text-sm text-foreground mb-1.5">收款方</label>
-                  <input className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30" value={form.payee} onChange={set('payee')} />
                 </div>
                 <div>
                   <label className="block text-sm text-foreground mb-1.5">标签</label>
@@ -384,15 +487,14 @@ export function AdminActivitiesPage() {
                           />
                         ) : (
                           <div className="flex-1 space-y-1.5">
-                            <input
-                              className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                            <ImageInput
                               value={block.src || ''}
-                              onChange={e => {
+                              onChange={v => {
                                 const newDesc = [...form.description];
-                                newDesc[i] = { ...newDesc[i], src: e.target.value };
+                                newDesc[i] = { ...newDesc[i], src: v };
                                 setForm(p => ({ ...p, description: newDesc }));
                               }}
-                              placeholder="图片地址"
+                              label="图片"
                             />
                             <input
                               className="w-full px-3 py-2 bg-input-background rounded-xl border border-border text-xs outline-none focus:ring-2 focus:ring-primary/30"
