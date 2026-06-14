@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AdminLayout } from './AdminLayout';
 import { StatusBadge } from '../shared/StatusBadge';
-import { Search, ChevronRight, UserX, UserCheck, Calendar, CheckCircle, DollarSign, Activity, KeyRound } from 'lucide-react';
+import { Search, ChevronRight, UserX, UserCheck, Calendar, CheckCircle, DollarSign, Activity, KeyRound, Trash2 } from 'lucide-react';
+import { getUserEnrollmentsApi } from '../../api/admin.api';
 
 export function AdminUsersPage() {
-  const { users, enrollments, activities, navigate, updateUser, fetchUsers, resetPassword } = useApp();
+  const { users, enrollments, activities, navigate, updateUser, fetchUsers, resetPassword, deleteUser } = useApp();
   const [search, setSearch] = useState('');
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [userEnrollmentsMap, setUserEnrollmentsMap] = useState<Record<string, any[]>>({});
   useEffect(() => {
     fetchUsers();
   }, []);
@@ -15,21 +18,29 @@ export function AdminUsersPage() {
     const q = search.toLowerCase();
     return !search || u.name.includes(q) || u.phone.includes(q) || u.email.includes(q) || u.nickname.includes(q);
   });
-  const getEnrollCount = (userId: string) =>
-    enrollments.filter(e => e.userId === userId && e.status !== '已取消' && e.status !== '已移除').length;
+  const getEnrollCount = (u: any) =>
+    (u as any).enrollmentCount !== undefined
+      ? (u as any).enrollmentCount
+      : enrollments.filter(e => e.userId === u.id && e.status !== '已取消' && e.status !== '已移除').length;
   const getCheckInCount = (userId: string) =>
     enrollments.filter(e => e.userId === userId && (e.checkInStatus === '已签到' || e.checkInStatus === '已离场')).length;
   const getConfirmedCount = (userId: string) =>
     enrollments.filter(e => e.userId === userId && (e.paymentStatus === '已确认' || e.paymentStatus === '已减免')).length;
-  const getUserEnrollments = (userId: string) =>
-    enrollments.filter(e => e.userId === userId).map(e => ({
-      ...e,
-      activity: activities.find(a => a.id === e.activityId),
-    })).filter(e => e.activity);
   const getLatestActivity = (userId: string) => {
-    const userEnrollments = getUserEnrollments(userId);
+    const userEnrollments = userEnrollmentsMap[userId] || [];
     if (userEnrollments.length === 0) return null;
-    return userEnrollments.sort((a, b) => b.enrolledAt.localeCompare(a.enrolledAt))[0];
+    return userEnrollments.sort((a: any, b: any) => b.enrolledAt.localeCompare(a.enrolledAt))[0];
+  };
+  const loadUserEnrollments = async (userId: string) => {
+    if (userEnrollmentsMap[userId]) return;
+    const res = await getUserEnrollmentsApi(userId);
+    if (res.success && res.data) {
+      const mapped = (res.data as any[]).map((e: any) => ({
+        ...e,
+        activity: e.activity || activities.find(a => a.id === e.activityId),
+      })).filter((e: any) => e.activity);
+      setUserEnrollmentsMap(prev => ({ ...prev, [userId]: mapped }));
+    }
   };
   const toggleStatus = async (userId: string, current: 'active' | 'disabled') => {
     const msg = current === 'active' ? '确定要禁用此用户？' : '确定要恢复此用户？';
@@ -38,7 +49,7 @@ export function AdminUsersPage() {
     }
   };
   const selectedUserData = selectedUser ? users.find(u => u.id === selectedUser) : null;
-  const selectedUserEnrollments = selectedUser ? getUserEnrollments(selectedUser) : [];
+  const selectedUserEnrollments = selectedUser ? (userEnrollmentsMap[selectedUser] || []) : [];
 
   return (
     <AdminLayout>
@@ -58,7 +69,7 @@ export function AdminUsersPage() {
         </div>
         <div className="space-y-2">
           {filtered.map(u => {
-            const enrollCount = getEnrollCount(u.id);
+            const enrollCount = getEnrollCount(u);
             const checkInCount = getCheckInCount(u.id);
             const confirmedCount = getConfirmedCount(u.id);
             const latestActivity = getLatestActivity(u.id);
@@ -120,10 +131,23 @@ export function AdminUsersPage() {
                         >
                           {u.status === 'active' ? <UserX size={15} /> : <UserCheck size={15} />}
                         </button>
+                        {enrollCount === 0 && (
+                          <button
+                            onClick={() => setDeleteConfirm({ id: u.id, name: u.nickname || u.name })}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-red-50 transition-colors"
+                            title="删除用户"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        )}
                       </>
                     )}
                     <button
-                      onClick={() => setSelectedUser(selectedUser === u.id ? null : u.id)}
+                      onClick={() => {
+                        const newSelected = selectedUser === u.id ? null : u.id;
+                        setSelectedUser(newSelected);
+                        if (newSelected) loadUserEnrollments(newSelected);
+                      }}
                       className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-secondary transition-colors"
                     >
                       <ChevronRight size={15} className={`transition-transform ${selectedUser === u.id ? 'rotate-90' : ''}`} />
@@ -163,6 +187,39 @@ export function AdminUsersPage() {
           })}
         </div>
       </div>
+      {/* 删除用户确认弹窗 */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDeleteConfirm(null)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm mx-4 p-6 shadow-2xl">
+            <h3 className="text-foreground font-medium mb-2">确认删除用户</h3>
+            <p className="text-sm text-muted-foreground mb-1">
+              确定要删除用户「{deleteConfirm.name}」吗？
+            </p>
+            <p className="text-sm text-destructive mb-5">此操作不可撤销，删除后数据将无法恢复。</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-foreground text-sm hover:bg-muted transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={async () => {
+                  const result = await deleteUser(deleteConfirm.id);
+                  setDeleteConfirm(null);
+                  if (!result.success) {
+                    alert(result.message);
+                  }
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-destructive text-white text-sm font-medium hover:bg-destructive/90 transition-colors"
+              >
+                确认删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }

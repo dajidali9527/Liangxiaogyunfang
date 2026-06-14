@@ -129,4 +129,23 @@ router.put('/password', authMiddleware, async (req: Request, res: Response) => {
     res.status(500).json({ success: false, message: '服务器错误' });
   }
 });
+// PUT /api/auth/nickname - 修改昵称
+router.put('/nickname', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { nickname } = req.body;
+    if (!nickname || !nickname.trim()) {
+      res.status(400).json({ success: false, message: '昵称不能为空' });
+      return;
+    }
+    const user = await prisma.user.update({
+      where: { id: req.user!.userId },
+      data: { nickname: nickname.trim() },
+    });
+    const { password: _, ...safeUser } = user;
+    res.json({ success: true, message: '昵称修改成功', data: safeUser });
+  } catch (err) {
+    console.error('[nickname]', err);
+    res.status(500).json({ success: false, message: '服务器错误' });
+  }
+});
 export default router;

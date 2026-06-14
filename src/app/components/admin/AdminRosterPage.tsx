@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AdminLayout } from './AdminLayout';
 import { StatusBadge } from '../shared/StatusBadge';
-import { ArrowLeft, Search, CheckCircle, DollarSign, LogOut, RotateCcw, Users, Plus, Trash2, X, Download } from 'lucide-react';
+import { ArrowLeft, Search, CheckCircle, DollarSign, LogOut, RotateCcw, Users, Plus, Trash2, X, Download, UserCheck, AlertTriangle, RefreshCw } from 'lucide-react';
 import { ManualEnrollData } from '../../context/AppContext';
 import * as XLSX from 'xlsx';
 
-type Tab = 'checkin' | 'payment';
+type Tab = 'checkin' | 'payment' | 'checkout';
 
 export function AdminRosterPage({ activityId }: { activityId: string }) {
   const { activities, enrollments, users, currentUser, navigate, updateCheckIn, updatePayment, updateEnrollment, manualEnroll, removeEnrollment, fetchAdminEnrollments } = useApp();
@@ -22,9 +22,22 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
   const [confirmPayModal, setConfirmPayModal] = useState<{ enrollId: string; action: '已确认' | '已减免' } | null>(null);
   const [confirmPayAmount, setConfirmPayAmount] = useState('');
   const [lastPayAmount, setLastPayAmount] = useState('');
+  const [removeConfirm, setRemoveConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [cancelCheckinConfirm, setCancelCheckinConfirm] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   useEffect(() => {
     fetchAdminEnrollments(activityId);
   }, [activityId]);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchAdminEnrollments(activityId);
+    setRefreshing(false);
+  };
+  const handleTabChange = async (t: Tab) => {
+    setTab(t);
+    setFilterStatus('all');
+    await fetchAdminEnrollments(activityId);
+  };
 
   if (!activity) return null;
 
@@ -39,10 +52,12 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
     let matchFilter = true;
     if (tab === 'checkin' && filterStatus !== 'all') matchFilter = e.checkInStatus === filterStatus;
     if (tab === 'payment' && filterStatus !== 'all') matchFilter = e.paymentStatus === filterStatus;
+    if (tab === 'checkout' && filterStatus !== 'all') matchFilter = e.checkInStatus === filterStatus;
     return matchSearch && matchFilter;
   });
   const checkedInCount = actEnrollments.filter(e => e.checkInStatus !== '未签到').length;
   const confirmedCount = actEnrollments.filter(e => e.paymentStatus === '已确认' || e.paymentStatus === '已减免').length;
+  const checkedOutCount = actEnrollments.filter(e => e.checkInStatus === '已离场').length;
 
   const openNoteModal = (enrollId: string, type: 'admin' | 'payment', current: string) => {
     setNoteText(current);
@@ -50,8 +65,10 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
   };
   const saveNote = async () => {
     if (!noteModal) return;
-    await updateEnrollment(noteModal.enrollId, { adminNote: noteText });
+    const enrollId = noteModal.enrollId;
+    const text = noteText;
     setNoteModal(null);
+    await updateEnrollment(enrollId, { adminNote: text });
   };
 
   const handleAddEnroll = async () => {
@@ -67,10 +84,8 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
     }
   };
 
-  const handleRemove = async (enrollmentId: string, name: string) => {
-    if (confirm(`确定要移除 ${name} 的报名吗？将保留历史数据。`)) {
-      await removeEnrollment(enrollmentId);
-    }
+  const handleRemove = (enrollmentId: string, name: string) => {
+    setRemoveConfirm({ id: enrollmentId, name });
   };
 
   const handleExport = () => {
@@ -114,6 +129,13 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
           </div>
           <div className="flex gap-2">
             <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="flex items-center gap-2 px-4 py-2.5 bg-secondary text-foreground rounded-xl text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50"
+            >
+              <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} /> 刷新
+            </button>
+            <button
               onClick={handleExport}
               className="flex items-center gap-2 px-4 py-2.5 bg-secondary text-foreground rounded-xl text-sm font-medium hover:bg-muted transition-colors"
             >
@@ -128,7 +150,7 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
           </div>
         </div>
         {/* Quick stats */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-4 gap-3">
           <div className="bg-card rounded-xl p-3 border border-border text-center">
             <div className="text-primary font-bold text-xl">{actEnrollments.length}</div>
             <div className="text-xs text-muted-foreground">已报名</div>
@@ -138,16 +160,20 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
             <div className="text-xs text-muted-foreground">已签到</div>
           </div>
           <div className="bg-card rounded-xl p-3 border border-border text-center">
+            <div className="text-blue-600 font-bold text-xl">{checkedOutCount}</div>
+            <div className="text-xs text-muted-foreground">已离场</div>
+          </div>
+          <div className="bg-card rounded-xl p-3 border border-border text-center">
             <div className="text-accent font-bold text-xl">{confirmedCount}</div>
             <div className="text-xs text-muted-foreground">已收费确认</div>
           </div>
         </div>
         {/* Tabs */}
         <div className="flex gap-1 bg-muted p-1 rounded-xl">
-          {([['checkin', '签到管理'], ['payment', '收费确认']] as [Tab, string][]).map(([t, label]) => (
+          {([['checkin', '签到管理'], ['payment', '收费确认'], ['checkout', '离场管理']] as [Tab, string][]).map(([t, label]) => (
             <button
               key={t}
-              onClick={() => { setTab(t); setFilterStatus('all'); }}
+              onClick={() => handleTabChange(t)}
               className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
                 tab === t ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
               }`}
@@ -177,6 +203,10 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
               <>
                 <option value="未签到">未签到</option>
                 <option value="已签到">已签到</option>
+              </>
+            ) : tab === 'checkout' ? (
+              <>
+                <option value="已签到">已签到（未离场）</option>
                 <option value="已离场">已离场</option>
               </>
             ) : (
@@ -221,6 +251,18 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
                   <span>·</span>
                   <span>报名 {e.enrolledAt.split(' ')[0]}</span>
                 </div>
+                {e.participants && e.participants.length > 0 && (
+                  <div className="mb-3 space-y-1.5">
+                    {e.participants.map((p, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs bg-muted/60 rounded-lg px-3 py-1.5">
+                        <span className="text-foreground font-medium">{p.name || `参与者${i + 1}`}</span>
+                        {p.gender && <span className="text-muted-foreground">{p.gender}</span>}
+                        {p.age && <span className="text-muted-foreground">{p.age}岁</span>}
+                        {p.note && <span className="text-blue-600 truncate">{p.note}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {e.note && (
                   <div className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2 mb-3">
                     备注：{e.note}
@@ -230,27 +272,19 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
                   <div className="flex gap-2 flex-wrap">
                     {e.checkInStatus === '未签到' && (
                       <button
-                        onClick={(ev) => { ev.stopPropagation(); updateCheckIn(e.id, '已签到').then(() => setFilterStatus('all')); }}
+                        onClick={(ev) => { ev.stopPropagation(); updateCheckIn(e.id, '已签到'); }}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-medium hover:bg-emerald-100 transition-colors"
                       >
-                        <CheckCircle size={13} /> 签到
+                        <UserCheck size={13} /> 签到
                       </button>
                     )}
                     {e.checkInStatus === '已签到' && (
-                      <>
-                        <button
-                          onClick={(ev) => { ev.stopPropagation(); updateCheckIn(e.id, '已离场').then(() => setFilterStatus('all')); }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-100 transition-colors"
-                        >
-                          <LogOut size={13} /> 记录离场
-                        </button>
-                        <button
-                          onClick={(ev) => { ev.stopPropagation(); updateCheckIn(e.id, '未签到').then(() => setFilterStatus('all')); }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-muted text-muted-foreground rounded-lg text-xs hover:bg-secondary transition-colors"
-                        >
-                          <RotateCcw size={13} /> 取消签到
-                        </button>
-                      </>
+                      <button
+                        onClick={(ev) => { ev.stopPropagation(); setCancelCheckinConfirm(e.id); }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-muted text-muted-foreground rounded-lg text-xs hover:bg-secondary transition-colors"
+                      >
+                        <RotateCcw size={13} /> 取消签到
+                      </button>
                     )}
                     {e.checkInStatus === '已离场' && (
                       <span className="text-xs text-muted-foreground">
@@ -268,6 +302,28 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
                       className="ml-auto px-3 py-1.5 bg-red-50 text-destructive rounded-lg text-xs hover:bg-red-100 transition-colors"
                     >
                       <Trash2 size={13} className="inline mr-1" />移除
+                    </button>
+                  </div>
+                ) : tab === 'checkout' ? (
+                  <div className="flex gap-2 flex-wrap">
+                    {e.checkInStatus === '已签到' && (
+                      <button
+                        onClick={(ev) => { ev.stopPropagation(); updateCheckIn(e.id, '已离场'); }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-100 transition-colors"
+                      >
+                        <LogOut size={13} /> 记录离场
+                      </button>
+                    )}
+                    {e.checkInStatus === '已离场' && (
+                      <span className="text-xs text-muted-foreground">
+                        签到 {e.checkInTime} · 离场 {e.checkOutTime}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => openNoteModal(e.id, 'admin', e.adminNote)}
+                      className="px-3 py-1.5 bg-muted text-muted-foreground rounded-lg text-xs hover:bg-secondary"
+                    >
+                      {e.adminNote ? '修改备注' : '添加备注'}
                     </button>
                   </div>
                 ) : (
@@ -292,7 +348,7 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
                       <>
                         <span className="text-xs text-emerald-600">已由 {e.confirmedBy} 确认</span>
                         <button
-                          onClick={(ev) => { ev.stopPropagation(); updatePayment(e.id, '已退款').then(() => setFilterStatus('all')); }}
+                          onClick={(ev) => { ev.stopPropagation(); updatePayment(e.id, '已退款'); }}
                           className="px-3 py-1.5 bg-muted text-muted-foreground rounded-lg text-xs hover:bg-secondary"
                         >
                           标记退款
@@ -359,7 +415,6 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
                   });
                   setLastPayAmount(confirmPayAmount);
                   setConfirmPayModal(null);
-                  setFilterStatus('all');
                 }}
                 className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90"
               >
@@ -473,6 +528,67 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* 移除报名确认弹窗 */}
+      {removeConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setRemoveConfirm(null)} />
+          <div className="relative bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="text-foreground font-medium mb-2">确认移除报名</h3>
+            <p className="text-sm text-muted-foreground mb-1">
+              确定要移除「{removeConfirm.name}」的报名吗？
+            </p>
+            <p className="text-sm text-destructive mb-5">移除后该用户将无法恢复此报名记录。</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setRemoveConfirm(null)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-foreground text-sm hover:bg-muted transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={async () => {
+                  await removeEnrollment(removeConfirm.id);
+                  setRemoveConfirm(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-destructive text-white text-sm font-medium hover:bg-destructive/90 transition-colors"
+              >
+                确认移除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 取消签到确认弹窗 */}
+      {cancelCheckinConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setCancelCheckinConfirm(null)} />
+          <div className="relative bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="text-foreground font-medium mb-2">确认取消签到</h3>
+            <div className="flex items-start gap-2 mb-4">
+              <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-sm text-muted-foreground">取消签到后，该用户的签到状态将恢复为"未签到"，签到时间记录将被清除。</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setCancelCheckinConfirm(null)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-foreground text-sm hover:bg-muted transition-colors"
+              >
+                返回
+              </button>
+              <button
+                onClick={async () => {
+                  await updateCheckIn(cancelCheckinConfirm, '未签到');
+                  setCancelCheckinConfirm(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 transition-colors"
+              >
+                确认取消签到
+              </button>
             </div>
           </div>
         </div>

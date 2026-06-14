@@ -20,7 +20,7 @@ router.get('/dashboard', async (_req: Request, res: Response) => {
       orderBy: { createdAt: 'desc' },
       take: 5,
     });
-    const pendingItems = await prisma.enrollment.findMany({
+    const pendingItemsRaw = await prisma.enrollment.findMany({
       where: {
         OR: [
           { paymentStatus: '未确认', status: { notIn: ['已取消', '已移除'] } },
@@ -30,6 +30,11 @@ router.get('/dashboard', async (_req: Request, res: Response) => {
       include: { activity: true, user: true },
       take: 5,
       orderBy: { enrolledAt: 'desc' },
+    });
+    const pendingItems = pendingItemsRaw.map(e => {
+      const { password: _, ...safeUser } = e.user;
+      const { enrollments: _enrollments, ...safeActivity } = e.activity as any;
+      return { ...e, user: safeUser, activity: safeActivity };
     });
     res.json({
       success: true,
@@ -52,8 +57,14 @@ router.get('/users', async (req: Request, res: Response) => {
       ? { OR: [{ name: { contains: String(search) } }, { phone: { contains: String(search) } }, { email: { contains: String(search) } }, { nickname: { contains: String(search) } }] }
       : {};
     const users = await prisma.user.findMany({ where, orderBy: { registeredAt: 'desc' } });
-    const safeUsers = users.map(({ password: _, ...u }) => u);
-    res.json({ success: true, data: safeUsers });
+    const usersWithCount = await Promise.all(users.map(async (u) => {
+      const { password: _, ...safeUser } = u;
+      const enrollmentCount = await prisma.enrollment.count({
+        where: { userId: u.id, status: { notIn: ['已取消', '已移除'] } },
+      });
+      return { ...safeUser, enrollmentCount };
+    }));
+    res.json({ success: true, data: usersWithCount });
   } catch (err) {
     console.error('[admin users]', err);
     res.status(500).json({ success: false, message: '服务器错误' });
@@ -63,7 +74,7 @@ router.get('/users', async (req: Request, res: Response) => {
 router.put('/users/:id', async (req: Request, res: Response) => {
   try {
     const user = await prisma.user.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: req.body,
     });
     const { password: _, ...safeUser } = user;
@@ -76,7 +87,7 @@ router.put('/users/:id', async (req: Request, res: Response) => {
 // POST /api/admin/users/:id/reset-password - 重置密码
 router.post('/users/:id/reset-password', async (req: Request, res: Response) => {
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.params.id } });
+    const user = await prisma.user.findUnique({ where: { id: req.params.id as string } });
     if (!user) {
       res.status(404).json({ success: false, message: '用户不存在' });
       return;
@@ -90,22 +101,52 @@ router.post('/users/:id/reset-password', async (req: Request, res: Response) => 
     res.status(500).json({ success: false, message: '服务器错误' });
   }
 });
-// GET /api/admin/enrollments - 获取某活动的报名列表
-router.get('/enrollments', async (req: Request, res: Response) => {
+// DELETE /api/admin/users/:id - 删除用户（无报名记录才可删除）
+router.delete('/users/:id', async (req: Request, res: Response) => {
   try {
-    const { activityId } = req.query;
-    if (!activityId) {
-      res.status(400).json({ success: false, message: '缺少activityId' });
+    const user = await prisma.user.findUnique({ where: { id: req.params.id as string } });
+    if (!user) {
+      res.status(404).json({ success: false, message: '用户不存在' });
       return;
     }
+    if (user.role === 'admin') {
+      res.status(400).json({ success: false, message: '不能删除管理员' });
+      return;
+    }
+    const enrollmentCount = await prisma.enrollment.count({
+      where: { userId: req.params.id as string },
+    });
+    if (enrollmentCount > 0) {
+      res.status(400).json({ success: false, message: '该用户有报名记录，无法删除' });
+      return;
+    }
+    await prisma.user.delete({ where: { id: req.params.id as string } });
+    res.json({ success: true, message: '用户已删除' });
+  } catch (err) {
+    console.error('[delete user]', err);
+    res.status(500).json({ success: false, message: '服务器错误' });
+  }
+});
+// GET /api/admin/enrollments - 获取某活动的报名列表（或某用户的报名记录）
+router.get('/enrollments', async (req: Request, res: Response) => {
+  try {
+    const { activityId, userId } = req.query;
+    if (!activityId && !userId) {
+      res.status(400).json({ success: false, message: '缺少activityId或userId' });
+      return;
+    }
+    const where: any = {};
+    if (activityId) where.activityId = String(activityId);
+    if (userId) where.userId = String(userId);
     const enrollments = await prisma.enrollment.findMany({
-      where: { activityId: String(activityId) },
-      include: { user: true },
+      where,
+      include: { user: true, activity: true },
       orderBy: { enrolledAt: 'desc' },
     });
     const safeData = enrollments.map(e => {
       const { password: _, ...safeUser } = e.user;
-      return { ...e, user: safeUser };
+      const { enrollments: _enrollments, ...safeActivity } = e.activity as any;
+      return { ...e, user: safeUser, activity: safeActivity };
     });
     res.json({ success: true, data: safeData });
   } catch (err) {
@@ -177,7 +218,7 @@ router.put('/enrollments/:id/checkin', async (req: Request, res: Response) => {
     if (checkInStatus === '已签到') updateData.checkInTime = checkInTime || new Date().toLocaleString('zh-CN');
     if (checkInStatus === '已离场') updateData.checkOutTime = checkOutTime || new Date().toLocaleString('zh-CN');
     const enrollment = await prisma.enrollment.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: updateData,
     });
     res.json({ success: true, data: enrollment });
@@ -191,7 +232,7 @@ router.put('/enrollments/:id/payment', async (req: Request, res: Response) => {
   try {
     const { paymentStatus, adminNote } = req.body;
     const enrollment = await prisma.enrollment.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: {
         paymentStatus,
         adminNote: adminNote !== undefined ? adminNote : undefined,
@@ -209,7 +250,7 @@ router.put('/enrollments/:id/payment', async (req: Request, res: Response) => {
 router.put('/enrollments/:id/remove', async (req: Request, res: Response) => {
   try {
     const enrollment = await prisma.enrollment.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: { status: '已移除' },
     });
     res.json({ success: true, data: enrollment });
@@ -230,10 +271,17 @@ router.get('/stats', async (_req: Request, res: Response) => {
     const checkInRate = totalEnrollments > 0 ? (checkedIn / totalEnrollments * 100).toFixed(1) : '0';
     const paymentRate = totalEnrollments > 0 ? (paidConfirmed / totalEnrollments * 100).toFixed(1) : '0';
     // 各活动统计
-    const activities = await prisma.activity.findMany({
-      include: { _count: { select: { enrollments: true } } },
+    const activitiesRaw = await prisma.activity.findMany({
       orderBy: { createdAt: 'desc' },
     });
+    const activities = await Promise.all(activitiesRaw.map(async (a) => {
+      const [enrolled, checkedIn, paidConfirmed] = await Promise.all([
+        prisma.enrollment.count({ where: { activityId: a.id, status: { notIn: ['已取消', '已移除'] } } }),
+        prisma.enrollment.count({ where: { activityId: a.id, checkInStatus: { in: ['已签到', '已离场'] } } }),
+        prisma.enrollment.count({ where: { activityId: a.id, paymentStatus: { in: ['已确认', '已减免'] } } }),
+      ]);
+      return { ...a, enrolled, checkedIn, paidConfirmed };
+    }));
     // 签到分布
     const checkInDist = await prisma.enrollment.groupBy({ by: ['checkInStatus'], where: { status: { notIn: ['已取消', '已移除'] } }, _count: true });
     // 收费分布

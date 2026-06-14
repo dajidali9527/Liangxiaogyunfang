@@ -458,7 +458,7 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
           <div className="relative bg-white rounded-2xl w-full max-w-sm mx-4 p-6 shadow-2xl">
             <h3 className="text-foreground font-semibold mb-3">个人信息使用说明</h3>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              本次报名仅收集昵称（可选）、手机号、邮箱（可选），仅用于活动通知与签到，不会向任何第三方共享。
+              在线报名仅收集昵称、手机号、性别、年龄、备注，用于活动通知、签到与活动现场安排、照顾相关人群，不会向任何第三方共享。
             </p>
             <button
               onClick={() => setShowPrivacy(false)}

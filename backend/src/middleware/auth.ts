@@ -13,7 +13,7 @@ declare global {
   }
 }
 export function generateToken(payload: AuthPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: (process.env.JWT_EXPIRES_IN || '7d') as any });
 }
 export function authMiddleware(req: Request, _res: Response, next: NextFunction) {
   const header = req.headers.authorization;

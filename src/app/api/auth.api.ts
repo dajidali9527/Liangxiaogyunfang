@@ -39,6 +39,9 @@ export async function getMeApi() {
 export async function changePasswordApi(oldPassword: string, newPassword: string) {
   return api.put('/auth/password', { oldPassword, newPassword });
 }
+export async function changeNicknameApi(nickname: string) {
+  return api.put<AuthUser>('/auth/nickname', { nickname });
+}
 export async function logoutApi() {
   removeToken();
 }

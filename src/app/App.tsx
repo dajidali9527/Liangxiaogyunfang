@@ -14,8 +14,24 @@ import { AdminStatsPage } from './components/admin/AdminStatsPage';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { Lock } from 'lucide-react';
 
+function AdminGuard({ children }: { children: ReactNode }) {
+  const { currentUser } = useApp();
+  if (!currentUser || currentUser.role !== 'admin') {
+    return (
+      <AdminLayout>
+        <div className="flex flex-col items-center justify-center h-full py-24 text-center px-4">
+          <Lock size={40} className="text-muted-foreground mb-4" />
+          <h2 className="text-foreground mb-2">需要管理员权限</h2>
+          <p className="text-muted-foreground text-sm">请使用管理员账号登录</p>
+        </div>
+      </AdminLayout>
+    );
+  }
+  return <>{children}</>;
+}
+
 function Router() {
-  const { route, currentUser, loading } = useApp();
+  const { route, loading } = useApp();
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -28,21 +44,6 @@ function Router() {
       </div>
     );
   }
-
-  const AdminGuard = ({ children }: { children: ReactNode }) => {
-    if (!currentUser || currentUser.role !== 'admin') {
-      return (
-        <AdminLayout>
-          <div className="flex flex-col items-center justify-center h-full py-24 text-center px-4">
-            <Lock size={40} className="text-muted-foreground mb-4" />
-            <h2 className="text-foreground mb-2">需要管理员权限</h2>
-            <p className="text-muted-foreground text-sm">请使用管理员账号登录</p>
-          </div>
-        </AdminLayout>
-      );
-    }
-    return <>{children}</>;
-  };
 
   switch (route.page) {
     case 'home':

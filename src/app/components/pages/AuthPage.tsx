@@ -27,7 +27,7 @@ function LoginForm({ redirect }: { redirect?: Route }) {
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm text-foreground mb-1.5">账号</label>
+        <label className="block text-sm text-foreground mb-1.5">账号/手机号</label>
         <input
           type="text"
           className="w-full px-4 py-3 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"

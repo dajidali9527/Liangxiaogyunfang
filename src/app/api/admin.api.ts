@@ -37,8 +37,14 @@ export async function updateUserApi(id: string, data: Partial<AppUser>) {
 export async function resetPasswordApi(id: string) {
   return api.post(`/admin/users/${id}/reset-password`, {});
 }
+export async function deleteUserApi(id: string) {
+  return api.del(`/admin/users/${id}`);
+}
 export async function getAdminEnrollmentsApi(activityId: string) {
   return api.get<Enrollment[]>(`/admin/enrollments?activityId=${activityId}`);
+}
+export async function getUserEnrollmentsApi(userId: string) {
+  return api.get<Enrollment[]>(`/admin/enrollments?userId=${userId}`);
 }
 export async function manualEnrollApi(data: {
   activityId: string;

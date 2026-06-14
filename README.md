@@ -150,6 +150,7 @@ npm run dev
 | GET | `/api/activities/:id` | 活动详情 | 无 |
 | POST | `/api/activities` | 创建活动 | Admin |
 | PUT | `/api/activities/:id` | 更新活动 | Admin |
+| DELETE | `/api/activities/:id` | 删除草稿活动 | Admin |
 
 ### 报名 `/api/enrollments`
 
@@ -317,3 +318,4 @@ docker compose -f docker-compose.prod.yml up -d --build
 - 新增 Prisma seed 脚本（5个活动+6个用户+12条报名记录）
 - 更新 23zeroSoloDeploy 部署配置（docker-compose、nginx、env）
 - AppContext 新增 loading 状态、fetchXxx 方法、changePassword、resetPassword
+- 活动管理新增删除草稿活动功能（2次确认弹窗，仅草稿状态可删除）

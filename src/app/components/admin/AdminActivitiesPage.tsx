@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { AdminLayout } from './AdminLayout';
 import { StatusBadge } from '../shared/StatusBadge';
-import { Plus, Search, Calendar, MapPin, Users, ChevronRight, X, Edit2, Star, Upload, Link } from 'lucide-react';
+import { Plus, Search, Calendar, MapPin, Users, ChevronRight, X, Edit2, Star, Upload, Link, Trash2 } from 'lucide-react';
 import { Activity, ActivityStatus } from '../../data/mock';
 
 type FormData = Omit<Activity, 'id' | 'enrolled' | 'createdAt'>;
@@ -73,7 +73,7 @@ function ImageInput({ value, onChange, label }: {
 }
 
 export function AdminActivitiesPage() {
-  const { activities, enrollments, navigate, updateActivity, addActivity } = useApp();
+  const { activities, enrollments, navigate, updateActivity, addActivity, deleteActivity } = useApp();
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -82,14 +82,13 @@ export function AdminActivitiesPage() {
   const [imageInput, setImageInput] = useState('');
   const [posterInput, setPosterInput] = useState('');
   const [formError, setFormError] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
   const galleryFileRef = useRef<HTMLInputElement>(null);
   const posterFileRef = useRef<HTMLInputElement>(null);
 
   const filtered = activities.filter(a =>
     !search || a.name.includes(search) || a.location.includes(search)
   );
-  const getEnrollCount = (id: string) =>
-    enrollments.filter(e => e.activityId === id && e.status !== '已取消' && e.status !== '已移除').length;
 
   const openCreate = () => {
     setEditingId(null);
@@ -119,7 +118,10 @@ export function AdminActivitiesPage() {
   };
 
   const handleSave = async () => {
-    if (!form.name || !form.startDate || !form.location) return;
+    if (!form.name || !form.startDate || !form.location) {
+      setFormError('请填写必填项：活动名称、开始日期、活动地点');
+      return;
+    }
     setFormError('');
     if (form.isFeatured && form.status === '报名中') {
       const existingFeatured = activities.find(a =>
@@ -132,20 +134,30 @@ export function AdminActivitiesPage() {
     }
     if (editingId) {
       await updateActivity(editingId, form);
+      setShowForm(false);
     } else {
-      await addActivity({
+      const result = await addActivity({
         ...form,
         id: `act-${Date.now()}`,
         enrolled: 0,
         createdAt: new Date().toISOString().split('T')[0],
       });
+      if (result.success) {
+        setShowForm(false);
+      } else {
+        setFormError(result.message || '创建失败，请重试');
+      }
     }
-    setShowForm(false);
   };
 
   const handleClose = async (id: string) => {
     if (confirm('确定要关闭此活动？\n\n关闭后：\n· 用户无法继续报名\n· 无法进行签到操作\n· 无法进行收费确认\n\n此操作不可撤销，请确认。')) {
       await updateActivity(id, { status: '已关闭' });
+    }
+  };
+  const handlePublish = async (id: string) => {
+    if (confirm('确定要发布此活动？\n\n发布后活动将对用户可见，用户可以开始报名。')) {
+      await updateActivity(id, { status: '报名中' });
     }
   };
 
@@ -227,7 +239,6 @@ export function AdminActivitiesPage() {
         </div>
         <div className="space-y-3">
           {filtered.map(a => {
-            const count = getEnrollCount(a.id);
             return (
               <div key={a.id} className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
                 <div className="flex gap-0">
@@ -249,7 +260,7 @@ export function AdminActivitiesPage() {
                     <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground mb-2">
                       <span className="flex items-center gap-1"><Calendar size={11} />{a.startDate}</span>
                       <span className="flex items-center gap-1"><MapPin size={11} />{a.location.split('·')[0].trim()}</span>
-                      <span className="flex items-center gap-1"><Users size={11} />{count}/{a.capacity} 人</span>
+                      <span className="flex items-center gap-1"><Users size={11} />{a.enrolled}/{a.capacity} 人</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
@@ -273,6 +284,24 @@ export function AdminActivitiesPage() {
                             className="text-xs text-destructive hover:underline"
                           >
                             关闭活动
+                          </button>
+                        </>
+                      )}
+                      {a.status === '草稿' && (
+                        <>
+                          <span className="text-muted-foreground">·</span>
+                          <button
+                            onClick={() => handlePublish(a.id)}
+                            className="text-xs text-primary hover:underline font-medium"
+                          >
+                            发布
+                          </button>
+                          <span className="text-muted-foreground">·</span>
+                          <button
+                            onClick={() => setDeleteConfirm({ id: a.id, name: a.name })}
+                            className="flex items-center gap-1 text-xs text-destructive hover:underline"
+                          >
+                            <Trash2 size={11} /> 删除
                           </button>
                         </>
                       )}
@@ -541,6 +570,39 @@ export function AdminActivitiesPage() {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* 删除确认弹窗 */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDeleteConfirm(null)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm mx-4 p-6 shadow-2xl">
+            <h3 className="text-foreground font-medium mb-2">确认删除活动</h3>
+            <p className="text-sm text-muted-foreground mb-1">
+              确定要删除草稿活动「{deleteConfirm.name}」吗？
+            </p>
+            <p className="text-sm text-destructive mb-5">此操作不可撤销，删除后数据将无法恢复。</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-foreground text-sm hover:bg-muted transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={async () => {
+                  const result = await deleteActivity(deleteConfirm.id);
+                  setDeleteConfirm(null);
+                  if (!result.success) {
+                    alert(result.message);
+                  }
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-destructive text-white text-sm font-medium hover:bg-destructive/90 transition-colors"
+              >
+                确认删除
+              </button>
             </div>
           </div>
         </div>

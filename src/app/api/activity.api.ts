@@ -14,3 +14,6 @@ export async function createActivityApi(data: Partial<Activity>) {
 export async function updateActivityApi(id: string, data: Partial<Activity>) {
   return api.put<Activity>(`/activities/${id}`, data);
 }
+export async function deleteActivityApi(id: string) {
+  return api.del(`/activities/${id}`);
+}

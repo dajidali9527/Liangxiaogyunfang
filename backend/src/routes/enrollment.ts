@@ -34,7 +34,7 @@ router.post('/', async (req: Request, res: Response) => {
       user = await prisma.user.create({
         data: {
           name: contactName || contactPhone,
-          nickname: contactName || '',
+          nickname: contactName || contactPhone,
           phone: contactPhone,
           password: hashed,
           role: 'user',
@@ -47,6 +47,14 @@ router.post('/', async (req: Request, res: Response) => {
     if (user.status === 'disabled') {
       res.status(403).json({ success: false, message: '账号已被禁用' });
       return;
+    }
+    // 已有用户昵称为空时，用手机号补上
+    if (!user.nickname) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { nickname: contactName || user.phone },
+      });
+      user = { ...user, nickname: contactName || user.phone };
     }
     // 检查重复报名
     const existing = await prisma.enrollment.findFirst({
@@ -114,14 +122,16 @@ router.get('/my', authMiddleware, async (req: Request, res: Response) => {
 router.get('/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const enrollment = await prisma.enrollment.findUnique({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       include: { activity: true, user: true },
     });
     if (!enrollment) {
       res.status(404).json({ success: false, message: '报名记录不存在' });
       return;
     }
-    const { password: _, ...safeEnrollment } = { ...enrollment, user: (() => { const { password, ...rest } = enrollment.user; return rest; })() };
+    const enrollmentWithUser = enrollment as any;
+    const { password: _, ...safeUser } = enrollmentWithUser.user;
+    const { ...safeEnrollment } = { ...enrollment, user: safeUser };
     res.json({ success: true, data: safeEnrollment });
   } catch (err) {
     console.error('[enrollment detail]', err);
@@ -131,7 +141,7 @@ router.get('/:id', authMiddleware, async (req: Request, res: Response) => {
 // PUT /api/enrollments/:id - 更新报名信息
 router.put('/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const enrollment = await prisma.enrollment.findUnique({ where: { id: req.params.id } });
+    const enrollment = await prisma.enrollment.findUnique({ where: { id: req.params.id as string } });
     if (!enrollment) {
       res.status(404).json({ success: false, message: '报名记录不存在' });
       return;
@@ -141,7 +151,7 @@ router.put('/:id', authMiddleware, async (req: Request, res: Response) => {
       return;
     }
     const updated = await prisma.enrollment.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: req.body,
     });
     res.json({ success: true, data: updated });

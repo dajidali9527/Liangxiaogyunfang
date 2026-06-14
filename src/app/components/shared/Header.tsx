@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { LogOut, User, Menu, X, LayoutDashboard, KeyRound } from 'lucide-react';
+import { LogOut, User, Menu, X, LayoutDashboard, KeyRound, PenLine } from 'lucide-react';
 
 export function Header() {
-  const { currentUser, navigate, logout, changePassword } = useApp();
+  const { currentUser, navigate, logout, changePassword, changeNickname } = useApp();
   const [menuOpen, setMenuOpen] = useState(false);
   const [showPwdModal, setShowPwdModal] = useState(false);
   const [pwdForm, setPwdForm] = useState({ old: '', new: '', confirm: '' });
   const [pwdMsg, setPwdMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [showNicknameModal, setShowNicknameModal] = useState(false);
+  const [nicknameInput, setNicknameInput] = useState('');
+  const [nicknameMsg, setNicknameMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const handleChangePwd = async () => {
     if (!pwdForm.old || !pwdForm.new || !pwdForm.confirm) {
       setPwdMsg({ ok: false, text: '请填写完整' });
@@ -31,6 +34,23 @@ export function Header() {
       }, 1200);
     } else {
       setPwdMsg({ ok: false, text: result.message });
+    }
+  };
+  const handleChangeNickname = async () => {
+    if (!nicknameInput.trim()) {
+      setNicknameMsg({ ok: false, text: '昵称不能为空' });
+      return;
+    }
+    const result = await changeNickname(nicknameInput.trim());
+    if (result.success) {
+      setNicknameMsg({ ok: true, text: '昵称修改成功' });
+      setTimeout(() => {
+        setShowNicknameModal(false);
+        setNicknameInput('');
+        setNicknameMsg(null);
+      }, 1200);
+    } else {
+      setNicknameMsg({ ok: false, text: result.message });
     }
   };
 
@@ -79,6 +99,13 @@ export function Header() {
                 >
                   <User size={15} className="text-muted-foreground" />
                   我的报名
+                </button>
+                <button
+                  onClick={() => { setShowNicknameModal(true); setNicknameInput(currentUser.nickname || ''); setMenuOpen(false); }}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors"
+                >
+                  <PenLine size={15} className="text-muted-foreground" />
+                  修改昵称
                 </button>
                 <button
                   onClick={() => { setShowPwdModal(true); setMenuOpen(false); }}
@@ -155,6 +182,40 @@ export function Header() {
               </button>
               <button
                 onClick={handleChangePwd}
+                className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90"
+              >
+                确认修改
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 修改昵称弹框 */}
+      {showNicknameModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40" onClick={() => { setShowNicknameModal(false); setNicknameMsg(null); }} />
+          <div className="relative bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="text-foreground mb-4">修改昵称</h3>
+            <input
+              className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30"
+              placeholder="请输入新昵称"
+              value={nicknameInput}
+              onChange={e => setNicknameInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleChangeNickname()}
+            />
+            {nicknameMsg && (
+              <p className={`mt-3 text-sm ${nicknameMsg.ok ? 'text-emerald-600' : 'text-destructive'}`}>{nicknameMsg.text}</p>
+            )}
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => { setShowNicknameModal(false); setNicknameInput(''); setNicknameMsg(null); }}
+                className="flex-1 py-2.5 rounded-xl border border-border text-foreground text-sm hover:bg-muted"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleChangeNickname}
                 className="flex-1 py-2.5 rounded-xl bg-primary text-white text-sm font-medium hover:bg-primary/90"
               >
                 确认修改

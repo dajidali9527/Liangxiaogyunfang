@@ -13,48 +13,30 @@ export function AdminDashboard() {
       if (data) setDashboardData(data);
     })();
   }, []);
-  const enrollments = dashboardData?.enrollments || [];
-  const users = dashboardData?.users || [];
-  const activeActivities = activities.filter(a => a.status === '报名中' || a.status === '已满员');
-  const totalEnrollments = enrollments.filter((e: any) => e.status !== '已取消' && e.status !== '已移除');
-  const checkedIn = enrollments.filter((e: any) => e.checkInStatus === '已签到' || e.checkInStatus === '已离场');
-  const confirmed = enrollments.filter((e: any) => e.paymentStatus === '已确认' || e.paymentStatus === '已减免');
-  const pending = enrollments.filter((e: any) => e.paymentStatus === '未确认' && e.status !== '已取消');
-  const notCheckedIn = totalEnrollments.filter((e: any) => e.checkInStatus === '未签到');
-  const stats = [
-    { label: '进行中活动', value: activeActivities.length, icon: <Calendar size={18} />, color: 'text-primary', bg: 'bg-primary/10' },
-    { label: '总报名人数', value: totalEnrollments.length, icon: <Users size={18} />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: '已签到', value: checkedIn.length, icon: <CheckCircle size={18} />, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: '已收费确认', value: confirmed.length, icon: <DollarSign size={18} />, color: 'text-accent', bg: 'bg-orange-50' },
-    { label: '待收费确认', value: pending.length, icon: <Clock size={18} />, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { label: '注册用户', value: users.filter((u: any) => u.role === 'user').length, icon: <TrendingUp size={18} />, color: 'text-purple-600', bg: 'bg-purple-50' },
+  const stats = dashboardData?.stats;
+  const recentActivities = dashboardData?.recentActivities || [];
+  const pendingItems = dashboardData?.pendingItems || [];
+  const statCards = [
+    { label: '进行中活动', value: stats?.activeActivities ?? 0, icon: <Calendar size={18} />, color: 'text-primary', bg: 'bg-primary/10' },
+    { label: '总报名人数', value: stats?.totalEnrollments ?? 0, icon: <Users size={18} />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { label: '已签到', value: stats?.checkedIn ?? 0, icon: <CheckCircle size={18} />, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: '已收费确认', value: stats?.paidConfirmed ?? 0, icon: <DollarSign size={18} />, color: 'text-accent', bg: 'bg-orange-50' },
+    { label: '待收费确认', value: stats?.pendingPayment ?? 0, icon: <Clock size={18} />, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { label: '注册用户', value: stats?.totalUsers ?? 0, icon: <TrendingUp size={18} />, color: 'text-purple-600', bg: 'bg-purple-50' },
   ];
-  const recentActivities = [...activities]
-    .filter(a => a.status !== '草稿')
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .slice(0, 5);
-  const pendingItems = [
-    ...enrollments.filter((e: any) => e.paymentStatus === '未确认' && e.status === '已报名').slice(0, 3).map((e: any) => {
-      const a = activities.find(a => a.id === e.activityId);
-      const u = users.find((u: any) => u.id === e.userId);
-      return { type: '待收费确认', name: u?.name || '', activity: a?.name || '', activityId: e.activityId };
-    }),
-    ...enrollments.filter((e: any) => e.checkInStatus === '未签到' && e.status === '已报名').slice(0, 2).map((e: any) => {
-      const a = activities.find(a => a.id === e.activityId);
-      const u = users.find((u: any) => u.id === e.userId);
-      return { type: '待签到', name: u?.name || '', activity: a?.name || '', activityId: e.activityId };
-    }),
-  ].slice(0, 5);
+  const displayActivities = recentActivities.length > 0
+    ? recentActivities.filter((a: any) => a.status !== '草稿')
+    : [...activities].filter(a => a.status !== '草稿').sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5);
   return (
     <AdminLayout>
       <div className="p-6 space-y-6 max-w-5xl">
         <div>
           <h1 className="text-foreground">运营概览</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">今日 2026-06-12</p>
+          <p className="text-muted-foreground text-sm mt-0.5">今日 {new Date().toLocaleDateString('zh-CN')}</p>
         </div>
         {/* Stats grid */}
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-          {stats.map(s => (
+          {statCards.map(s => (
             <div key={s.label} className="bg-card rounded-2xl p-4 border border-border shadow-sm">
               <div className="flex items-start justify-between mb-3">
                 <div className={`p-2 rounded-xl ${s.bg}`}>
@@ -76,25 +58,22 @@ export function AdminDashboard() {
               </button>
             </div>
             <div className="divide-y divide-border">
-              {recentActivities.map(a => {
-                const count = enrollments.filter((e: any) => e.activityId === a.id && e.status !== '已取消').length;
-                return (
-                  <button
-                    key={a.id}
-                    onClick={() => navigate({ page: 'admin-activity-detail', activityId: a.id })}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left"
-                  >
-                    <div className="w-10 h-10 rounded-xl overflow-hidden bg-muted shrink-0">
-                      <img src={a.imageUrl} alt={a.name} className="w-full h-full object-cover" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm text-foreground truncate">{a.name}</div>
-                      <div className="text-xs text-muted-foreground">{a.startDate} · {count} 人报名</div>
-                    </div>
-                    <StatusBadge status={a.status} />
-                  </button>
-                );
-              })}
+              {displayActivities.map((a: any) => (
+                <button
+                  key={a.id}
+                  onClick={() => navigate({ page: 'admin-activity-detail', activityId: a.id })}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left"
+                >
+                  <div className="w-10 h-10 rounded-xl overflow-hidden bg-muted shrink-0">
+                    <img src={a.imageUrl} alt={a.name} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-foreground truncate">{a.name}</div>
+                    <div className="text-xs text-muted-foreground">{a.startDate} · {a.enrolled ?? 0} 人报名</div>
+                  </div>
+                  <StatusBadge status={a.status} />
+                </button>
+              ))}
             </div>
           </div>
           {/* Pending tasks */}
@@ -103,27 +82,30 @@ export function AdminDashboard() {
               <h3 className="text-foreground">待处理事项</h3>
             </div>
             {pendingItems.length === 0 ? (
-              <div className="px-4 py-8 text-center text-muted-foreground text-sm">暂无待处理事项 🎉</div>
+              <div className="px-4 py-8 text-center text-muted-foreground text-sm">暂无待处理事项</div>
             ) : (
               <div className="divide-y divide-border">
-                {pendingItems.map((item, i) => (
-                  <button
-                    key={i}
-                    onClick={() => navigate({ page: 'admin-activity-detail', activityId: item.activityId })}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left"
-                  >
-                    <div className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${
-                      item.type === '待收费确认' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
-                    }`}>
-                      {item.type}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm text-foreground">{item.name}</div>
-                      <div className="text-xs text-muted-foreground truncate">{item.activity}</div>
-                    </div>
-                    <ChevronRight size={14} className="text-muted-foreground shrink-0" />
-                  </button>
-                ))}
+                {pendingItems.map((item: any) => {
+                  const isPay = item.paymentStatus === '未确认';
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => navigate({ page: 'admin-activity-detail', activityId: item.activityId })}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors text-left"
+                    >
+                      <div className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${
+                        isPay ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {isPay ? '待收费确认' : '待签到'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-foreground">{item.user?.name || item.user?.nickname || ''}</div>
+                        <div className="text-xs text-muted-foreground truncate">{item.activity?.name || ''}</div>
+                      </div>
+                      <ChevronRight size={14} className="text-muted-foreground shrink-0" />
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>

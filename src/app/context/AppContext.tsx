@@ -1,11 +1,11 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { AppUser, Enrollment, Activity } from '../data/mock';
 import { getToken, setToken, removeToken } from '../api/client';
-import { loginApi, registerApi, getMeApi, logoutApi, changePasswordApi, AuthUser } from '../api/auth.api';
-import { getActivitiesApi, getActivityApi, createActivityApi, updateActivityApi } from '../api/activity.api';
+import { loginApi, registerApi, getMeApi, logoutApi, changePasswordApi, changeNicknameApi, AuthUser } from '../api/auth.api';
+import { getActivitiesApi, getActivityApi, createActivityApi, updateActivityApi, deleteActivityApi } from '../api/activity.api';
 import { enrollApi, getMyEnrollmentsApi, getEnrollmentApi, updateEnrollmentApi } from '../api/enrollment.api';
 import {
-  getDashboardApi, getUsersApi, updateUserApi, resetPasswordApi,
+  getDashboardApi, getUsersApi, updateUserApi, resetPasswordApi, deleteUserApi,
   getAdminEnrollmentsApi, manualEnrollApi, checkInApi, paymentApi,
   removeEnrollmentApi, getStatsApi,
 } from '../api/admin.api';
@@ -39,7 +39,9 @@ interface AppState {
   updateEnrollment: (enrollmentId: string, updates: Partial<Enrollment>) => Promise<void>;
   updateActivity: (activityId: string, updates: Partial<Activity>) => Promise<void>;
   updateUser: (userId: string, updates: Partial<AppUser>) => Promise<void>;
-  addActivity: (activity: Activity) => Promise<void>;
+  deleteUser: (userId: string) => Promise<{ success: boolean; message: string }>;
+  addActivity: (activity: Activity) => Promise<{ success: boolean; message: string }>;
+  deleteActivity: (activityId: string) => Promise<{ success: boolean; message: string }>;
   manualEnroll: (activityId: string, data: ManualEnrollData) => Promise<{ success: boolean; message: string }>;
   removeEnrollment: (enrollmentId: string) => Promise<void>;
   fetchActivities: () => Promise<void>;
@@ -49,6 +51,7 @@ interface AppState {
   fetchDashboard: () => Promise<any>;
   fetchStats: () => Promise<any>;
   changePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
+  changeNickname: (nickname: string) => Promise<{ success: boolean; message: string }>;
   resetPassword: (userId: string) => Promise<{ success: boolean; message: string }>;
 }
 export interface RegisterData {
@@ -107,6 +110,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setRoute(r);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+  const mapActivity = (d: any): Activity => ({
+    id: d.id,
+    name: d.name || '',
+    status: d.status || '草稿',
+    startDate: d.startDate || '',
+    endDate: d.endDate || '',
+    location: d.location || '',
+    price: d.price || 0,
+    capacity: d.capacity || 0,
+    enrolled: d.enrolled || 0,
+    enrollDeadline: d.enrollDeadline || '',
+    enrollStartDate: d.enrollStartDate || '',
+    description: d.description || [],
+    imageUrl: d.imageUrl || '',
+    payee: d.payee || '',
+    tags: d.tags || [],
+    createdAt: d.createdAt ? new Date(d.createdAt).toISOString().split('T')[0] : '',
+    isFeatured: d.isFeatured || false,
+    featuredPosters: d.featuredPosters || [],
+    featuredDescription: d.featuredDescription || '',
+    images: d.images || [],
+    videoUrl: d.videoUrl || '',
+  });
   // 初始化：恢复登录态 + 加载活动列表
   useEffect(() => {
     (async () => {
@@ -121,7 +147,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       const actRes = await getActivitiesApi();
       if (actRes.success && actRes.data) {
-        setActivities(actRes.data as Activity[]);
+        setActivities((actRes.data as any[]).map(mapActivity));
       }
       setLoading(false);
     })();
@@ -129,7 +155,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const fetchActivities = useCallback(async () => {
     const res = await getActivitiesApi();
     if (res.success && res.data) {
-      setActivities(res.data as Activity[]);
+      setActivities((res.data as any[]).map(mapActivity));
     }
   }, []);
   const fetchMyEnrollments = useCallback(async () => {
@@ -248,7 +274,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateActivity = async (activityId: string, updates: Partial<Activity>) => {
     const res = await updateActivityApi(activityId, updates);
     if (res.success && res.data) {
-      setActivities(prev => prev.map(a => a.id === activityId ? { ...a, ...res.data } : a));
+      setActivities(prev => prev.map(a => a.id === activityId ? mapActivity(res.data!) : a));
     }
   };
   const updateUser = async (userId: string, updates: Partial<AppUser>) => {
@@ -257,15 +283,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, ...res.data } : u));
     }
   };
+  const deleteUserFn = async (userId: string) => {
+    const res = await deleteUserApi(userId);
+    if (res.success) {
+      setUsers(prev => prev.filter(u => u.id !== userId));
+      return { success: true, message: '删除成功' };
+    }
+    return { success: false, message: res.message || '删除失败' };
+  };
   const addActivity = async (activity: Activity) => {
     const res = await createActivityApi(activity);
     if (res.success && res.data) {
-      setActivities(prev => [res.data as Activity, ...prev]);
+      setActivities(prev => [mapActivity(res.data!), ...prev]);
+      return { success: true, message: '创建成功' };
     }
+    return { success: false, message: res.message || '创建失败' };
+  };
+  const deleteActivity = async (activityId: string) => {
+    const res = await deleteActivityApi(activityId);
+    if (res.success) {
+      setActivities(prev => prev.filter(a => a.id !== activityId));
+      return { success: true, message: '删除成功' };
+    }
+    return { success: false, message: res.message || '删除失败' };
   };
   const changePassword = async (oldPassword: string, newPassword: string) => {
     const res = await changePasswordApi(oldPassword, newPassword);
     return { success: res.success, message: res.message || '密码修改成功' };
+  };
+  const changeNickname = async (nickname: string) => {
+    const res = await changeNicknameApi(nickname);
+    if (res.success && res.data) {
+      setCurrentUser(mapAuthUserToAppUser(res.data));
+      return { success: true, message: '昵称修改成功' };
+    }
+    return { success: false, message: res.message || '修改失败' };
   };
   const resetPassword = async (userId: string) => {
     const res = await resetPasswordApi(userId);
@@ -276,11 +328,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       currentUser, route, activities, users, enrollments, loading,
       navigate, login, logout, register, enroll,
       updateCheckIn, updatePayment, updateEnrollment,
-      updateActivity, updateUser, addActivity,
+      updateActivity, updateUser, deleteUser: deleteUserFn, addActivity, deleteActivity,
       manualEnroll, removeEnrollment: removeEnrollmentFn,
       fetchActivities, fetchMyEnrollments, fetchAdminEnrollments,
       fetchUsers, fetchDashboard, fetchStats,
-      changePassword, resetPassword,
+      changePassword, changeNickname, resetPassword,
     }}>
       {children}
     </AppContext.Provider>
