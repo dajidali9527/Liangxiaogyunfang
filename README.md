@@ -81,6 +81,7 @@ npm run dev
 | **ORM** | Prisma | 6.0+ | 数据库 ORM |
 | **数据库** | PostgreSQL | 16 | yun_schema 专用模式 |
 | **认证** | JWT + bcryptjs | - | Token 认证 + 密码加密 |
+| **文件上传** | Multer | 2.1+ | 图片上传到 /uploads/yun/，Nginx 直接服务 |
 | **开发工具** | tsx | 4.0+ | TypeScript 执行 + 热重载 |
 
 ---
@@ -319,3 +320,6 @@ docker compose -f docker-compose.prod.yml up -d --build
 - 更新 23zeroSoloDeploy 部署配置（docker-compose、nginx、env）
 - AppContext 新增 loading 状态、fetchXxx 方法、changePassword、resetPassword
 - 活动管理新增删除草稿活动功能（2次确认弹窗，仅草稿状态可删除）
+- 图片上传从 Base64 改为 Multer 文件上传，图片存储在 /uploads/yun/，Nginx 直接服务
+- 新增 POST /api/upload 接口（multipart/form-data，最多10张，单张≤10MB）
+- 前端 API client 新增 upload 方法支持 FormData 上传

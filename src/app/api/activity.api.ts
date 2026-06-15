@@ -17,3 +17,10 @@ export async function updateActivityApi(id: string, data: Partial<Activity>) {
 export async function deleteActivityApi(id: string) {
   return api.del(`/activities/${id}`);
 }
+export async function uploadFilesApi(files: File[]): Promise<string[]> {
+  const formData = new FormData();
+  files.forEach(f => formData.append('files', f));
+  const res = await api.upload<string[]>('/upload', formData);
+  if (res.success && res.data) return res.data;
+  throw new Error(res.message || '上传失败');
+}

@@ -42,9 +42,32 @@ async function request<T = any>(method: HttpMethod, path: string, body?: any): P
     return { success: false, message: '网络错误，请检查网络连接' };
   }
 }
+async function uploadRequest<T = any>(path: string, formData: FormData): Promise<ApiResult<T>> {
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  try {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    const data = await res.json();
+    if (res.status === 401) {
+      removeToken();
+    }
+    return data;
+  } catch (err) {
+    console.error('[Upload Error]', err);
+    return { success: false, message: '上传失败，请检查网络连接' };
+  }
+}
 export const api = {
   get: <T = any>(path: string) => request<T>('GET', path),
   post: <T = any>(path: string, body: any) => request<T>('POST', path, body),
   put: <T = any>(path: string, body: any) => request<T>('PUT', path, body),
   del: <T = any>(path: string) => request<T>('DELETE', path),
+  upload: <T = any>(path: string, formData: FormData) => uploadRequest<T>(path, formData),
 };

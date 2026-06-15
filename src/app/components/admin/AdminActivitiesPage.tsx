@@ -4,6 +4,7 @@ import { AdminLayout } from './AdminLayout';
 import { StatusBadge } from '../shared/StatusBadge';
 import { Plus, Search, Calendar, MapPin, Users, ChevronRight, X, Edit2, Star, Upload, Link, Trash2 } from 'lucide-react';
 import { Activity, ActivityStatus } from '../../data/mock';
+import { uploadFilesApi } from '../../api/activity.api';
 
 type FormData = Omit<Activity, 'id' | 'enrolled' | 'createdAt'>;
 
@@ -29,20 +30,20 @@ const INITIAL_FORM: FormData = {
 };
 
 // 图片输入组件：支持上传和外链
-function ImageInput({ value, onChange, label }: {
+function ImageInput({ value, onChange, label, uploading, onUpload }: {
   value: string;
   onChange: (v: string) => void;
   label: string;
+  uploading: boolean;
+  onUpload: (file: File) => Promise<string>;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      onChange(ev.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+    const url = await onUpload(file);
+    if (url) onChange(url);
+    e.target.value = '';
   };
   return (
     <div>
@@ -57,9 +58,10 @@ function ImageInput({ value, onChange, label }: {
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
-          className="flex items-center gap-1.5 px-3 py-2.5 bg-secondary text-foreground rounded-xl text-sm hover:bg-muted shrink-0"
+          disabled={uploading}
+          className="flex items-center gap-1.5 px-3 py-2.5 bg-secondary text-foreground rounded-xl text-sm hover:bg-muted shrink-0 disabled:opacity-50"
         >
-          <Upload size={13} /> 上传
+          <Upload size={13} /> {uploading ? '上传中' : '上传'}
         </button>
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
       </div>
@@ -83,8 +85,23 @@ export function AdminActivitiesPage() {
   const [posterInput, setPosterInput] = useState('');
   const [formError, setFormError] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
   const galleryFileRef = useRef<HTMLInputElement>(null);
   const posterFileRef = useRef<HTMLInputElement>(null);
+
+  const uploadSingleFile = async (file: File): Promise<string> => {
+    const urls = await uploadFilesApi([file]);
+    return urls[0];
+  };
+
+  const handleUpload = async (files: File[]): Promise<string[]> => {
+    setUploading(true);
+    try {
+      return await uploadFilesApi(files);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const filtered = activities.filter(a =>
     !search || a.name.includes(search) || a.location.includes(search)
@@ -178,17 +195,13 @@ export function AdminActivitiesPage() {
     }
   };
 
-  const addImageByFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const addImageByFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    Array.from(files).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const dataUrl = ev.target?.result as string;
-        setForm(p => ({ ...p, images: [...p.images, dataUrl] }));
-      };
-      reader.readAsDataURL(file);
-    });
+    const urls = await handleUpload(Array.from(files));
+    if (urls.length > 0) {
+      setForm(p => ({ ...p, images: [...p.images, ...urls] }));
+    }
     e.target.value = '';
   };
 
@@ -199,17 +212,13 @@ export function AdminActivitiesPage() {
     }
   };
 
-  const addPosterByFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const addPosterByFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    Array.from(files).forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const dataUrl = ev.target?.result as string;
-        setForm(p => ({ ...p, featuredPosters: [...p.featuredPosters, dataUrl] }));
-      };
-      reader.readAsDataURL(file);
-    });
+    const urls = await handleUpload(Array.from(files));
+    if (urls.length > 0) {
+      setForm(p => ({ ...p, featuredPosters: [...p.featuredPosters, ...urls] }));
+    }
     e.target.value = '';
   };
 
@@ -384,9 +393,10 @@ export function AdminActivitiesPage() {
                           </button>
                           <button
                             onClick={() => posterFileRef.current?.click()}
-                            className="flex items-center gap-1 px-3 py-2 bg-secondary text-foreground rounded-xl text-sm hover:bg-muted shrink-0"
+                            disabled={uploading}
+                            className="flex items-center gap-1 px-3 py-2 bg-secondary text-foreground rounded-xl text-sm hover:bg-muted shrink-0 disabled:opacity-50"
                           >
-                            <Upload size={13} /> 上传
+                            <Upload size={13} /> {uploading ? '上传中' : '上传'}
                           </button>
                           <input ref={posterFileRef} type="file" accept="image/*" multiple className="hidden" onChange={addPosterByFile} />
                         </div>
@@ -427,6 +437,8 @@ export function AdminActivitiesPage() {
                   label="封面图"
                   value={form.imageUrl}
                   onChange={v => setForm(p => ({ ...p, imageUrl: v }))}
+                  uploading={uploading}
+                  onUpload={uploadSingleFile}
                 />
                 {/* 活动图集 */}
                 <div>
@@ -457,9 +469,10 @@ export function AdminActivitiesPage() {
                     </button>
                     <button
                       onClick={() => galleryFileRef.current?.click()}
-                      className="flex items-center gap-1 px-3 py-2 bg-secondary text-foreground rounded-xl text-sm hover:bg-muted shrink-0"
+                      disabled={uploading}
+                      className="flex items-center gap-1 px-3 py-2 bg-secondary text-foreground rounded-xl text-sm hover:bg-muted shrink-0 disabled:opacity-50"
                     >
-                      <Upload size={13} /> 上传
+                      <Upload size={13} /> {uploading ? '上传中' : '上传'}
                     </button>
                     <input ref={galleryFileRef} type="file" accept="image/*" multiple className="hidden" onChange={addImageByFile} />
                   </div>
@@ -524,6 +537,8 @@ export function AdminActivitiesPage() {
                                 setForm(p => ({ ...p, description: newDesc }));
                               }}
                               label="图片"
+                              uploading={uploading}
+                              onUpload={uploadSingleFile}
                             />
                             <input
                               className="w-full px-3 py-2 bg-input-background rounded-xl border border-border text-xs outline-none focus:ring-2 focus:ring-primary/30"
