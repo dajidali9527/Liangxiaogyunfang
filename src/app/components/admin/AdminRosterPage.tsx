@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { AdminLayout } from './AdminLayout';
 import { StatusBadge } from '../shared/StatusBadge';
 import { ArrowLeft, Search, CheckCircle, DollarSign, LogOut, RotateCcw, Users, Plus, Trash2, X, Download, UserCheck, AlertTriangle, RefreshCw } from 'lucide-react';
-import { ManualEnrollData } from '../../context/AppContext';
+import { ManualEnrollData, Participant } from '../../context/AppContext';
 import * as XLSX from 'xlsx';
 
 type Tab = 'checkin' | 'payment' | 'checkout';
@@ -17,7 +17,7 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
   const [noteModal, setNoteModal] = useState<{ enrollId: string; type: 'admin' | 'payment' } | null>(null);
   const [noteText, setNoteText] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [addForm, setAddForm] = useState<ManualEnrollData>({ contactName: '', contactPhone: '', adults: 1, children: 0, amount: 0, note: '' });
+  const [addForm, setAddForm] = useState<ManualEnrollData>({ contactName: '', contactPhone: '', adults: 1, children: 0, amount: 0, note: '', participants: [] });
   const [addResult, setAddResult] = useState<{ success: boolean; message: string } | null>(null);
   const [confirmPayModal, setConfirmPayModal] = useState<{ enrollId: string; action: '已确认' | '已减免' } | null>(null);
   const [confirmPayAmount, setConfirmPayAmount] = useState('');
@@ -78,10 +78,26 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
     if (result.success) {
       setTimeout(() => {
         setShowAddModal(false);
-        setAddForm({ contactName: '', contactPhone: '', adults: 1, children: 0, amount: 0, note: '' });
+        setAddForm({ contactName: '', contactPhone: '', adults: 1, children: 0, amount: 0, note: '', participants: [] });
         setAddResult(null);
       }, 500);
     }
+  };
+  const rebuildParticipants = (adults: number, children: number, existing: Participant[]): Participant[] => {
+    const total = adults + children;
+    const result: Participant[] = [];
+    for (let i = 0; i < total; i++) {
+      const defaultName = i < adults ? `成人${i + 1}` : `儿童${i - adults + 1}`;
+      result.push(existing[i] || { name: defaultName, gender: '', age: '', note: '' });
+    }
+    return result;
+  };
+  const updateParticipant = (idx: number, field: keyof Participant, value: string) => {
+    setAddForm(p => {
+      const ps = [...(p.participants || [])];
+      ps[idx] = { ...ps[idx], [field]: value };
+      return { ...p, participants: ps };
+    });
   };
 
   const handleRemove = (enrollmentId: string, name: string) => {
@@ -460,16 +476,7 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
               </div>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm text-foreground mb-1.5">昵称（可选）</label>
-                  <input
-                    className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30"
-                    value={addForm.contactName}
-                    onChange={e => setAddForm(p => ({ ...p, contactName: e.target.value }))}
-                    placeholder="请输入昵称"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-foreground mb-1.5">手机号 *</label>
+                  <label className="block text-sm text-foreground mb-1.5">联系手机 *</label>
                   <input
                     className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30"
                     value={addForm.contactPhone}
@@ -478,24 +485,99 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
                   />
                   <p className="text-xs text-muted-foreground mt-1">若用户不存在将自动创建账号</p>
                 </div>
+                <div>
+                  <label className="block text-sm text-foreground mb-1.5">联系人昵称</label>
+                  <input
+                    className="w-full px-3 py-2.5 bg-input-background rounded-xl border border-border text-sm outline-none focus:ring-2 focus:ring-primary/30"
+                    value={addForm.contactName}
+                    onChange={e => setAddForm(p => ({ ...p, contactName: e.target.value }))}
+                    placeholder="请输入联系人昵称"
+                  />
+                </div>
                 <div className="flex gap-3">
                   <div className="flex-1">
                     <label className="block text-sm text-foreground mb-1.5">成人人数</label>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setAddForm(p => ({ ...p, adults: Math.max(1, p.adults - 1) }))} className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-foreground hover:bg-muted">-</button>
+                      <button
+                        onClick={() => {
+                          const newAdults = Math.max(1, addForm.adults - 1);
+                          const ps = [...(addForm.participants || [])];
+                          if (ps.length > newAdults + addForm.children) ps.splice(newAdults, 1);
+                          setAddForm(p => ({ ...p, adults: newAdults, participants: rebuildParticipants(newAdults, p.children, ps) }));
+                        }}
+                        className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-foreground hover:bg-muted"
+                      >-</button>
                       <span className="text-foreground font-medium w-6 text-center">{addForm.adults}</span>
-                      <button onClick={() => setAddForm(p => ({ ...p, adults: p.adults + 1 }))} className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-foreground hover:bg-muted">+</button>
+                      <button
+                        onClick={() => {
+                          const newAdults = addForm.adults + 1;
+                          setAddForm(p => ({ ...p, adults: newAdults, participants: rebuildParticipants(newAdults, p.children, p.participants || []) }));
+                        }}
+                        className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-foreground hover:bg-muted"
+                      >+</button>
                     </div>
                   </div>
                   <div className="flex-1">
                     <label className="block text-sm text-foreground mb-1.5">儿童人数</label>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setAddForm(p => ({ ...p, children: Math.max(0, p.children - 1) }))} className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-foreground hover:bg-muted">-</button>
+                      <button
+                        onClick={() => {
+                          const newChildren = Math.max(0, addForm.children - 1);
+                          const ps = [...(addForm.participants || [])];
+                          if (ps.length > addForm.adults + newChildren) ps.splice(addForm.adults + newChildren, 1);
+                          setAddForm(p => ({ ...p, children: newChildren, participants: rebuildParticipants(p.adults, newChildren, ps) }));
+                        }}
+                        className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-foreground hover:bg-muted"
+                      >-</button>
                       <span className="text-foreground font-medium w-6 text-center">{addForm.children}</span>
-                      <button onClick={() => setAddForm(p => ({ ...p, children: p.children + 1 }))} className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-foreground hover:bg-muted">+</button>
+                      <button
+                        onClick={() => {
+                          const newChildren = addForm.children + 1;
+                          setAddForm(p => ({ ...p, children: newChildren, participants: rebuildParticipants(p.adults, newChildren, p.participants || []) }));
+                        }}
+                        className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-foreground hover:bg-muted"
+                      >+</button>
                     </div>
                   </div>
                 </div>
+                {(addForm.participants || []).length > 0 && (
+                  <div className="space-y-3">
+                    {(addForm.participants || []).map((p, idx) => (
+                      <div key={idx} className="bg-input-background rounded-xl p-3 border border-border">
+                        <div className="text-xs font-medium text-muted-foreground mb-2">{p.name || (idx < addForm.adults ? `成人${idx + 1}` : `儿童${idx - addForm.adults + 1}`)}</div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <input
+                            className="px-2 py-1.5 bg-white rounded-lg border border-border text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                            value={p.name}
+                            onChange={e => updateParticipant(idx, 'name', e.target.value)}
+                            placeholder="称呼"
+                          />
+                          <select
+                            className="px-2 py-1.5 bg-white rounded-lg border border-border text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                            value={p.gender}
+                            onChange={e => updateParticipant(idx, 'gender', e.target.value)}
+                          >
+                            <option value="">性别</option>
+                            <option value="男">男</option>
+                            <option value="女">女</option>
+                          </select>
+                          <input
+                            className="px-2 py-1.5 bg-white rounded-lg border border-border text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                            value={p.age}
+                            onChange={e => updateParticipant(idx, 'age', e.target.value)}
+                            placeholder="年龄"
+                          />
+                        </div>
+                        <input
+                          className="mt-1.5 w-full px-2 py-1.5 bg-white rounded-lg border border-border text-xs outline-none focus:ring-1 focus:ring-primary/30"
+                          value={p.note}
+                          onChange={e => updateParticipant(idx, 'note', e.target.value)}
+                          placeholder="备注"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm text-foreground mb-1.5">备注</label>
                   <textarea

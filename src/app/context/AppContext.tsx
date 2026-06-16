@@ -82,6 +82,7 @@ export interface ManualEnrollData {
   children: number;
   amount: number;
   note?: string;
+  participants?: Participant[];
 }
 function mapAuthUserToAppUser(u: AuthUser): AppUser {
   return {
@@ -251,6 +252,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       children: data.children,
       amount: data.amount,
       note: data.note || undefined,
+      participants: data.participants,
     });
     if (res.success) {
       await fetchActivities();

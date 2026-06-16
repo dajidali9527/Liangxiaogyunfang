@@ -116,15 +116,6 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
               <button onClick={nextImage} className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-white/40 transition-colors">
                 <ChevronRight size={16} />
               </button>
-              <div className="absolute bottom-14 left-1/2 -translate-x-1/2 flex gap-1.5">
-                {allImages.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setCurrentImage(i)}
-                    className={`w-2 h-2 rounded-full transition-all ${i === currentImage ? 'bg-white w-5' : 'bg-white/50'}`}
-                  />
-                ))}
-              </div>
             </>
           )}
           <div className="absolute bottom-4 left-4 right-4">
@@ -162,7 +153,7 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
                   <div className="text-sm text-foreground">{activity.location}</div>
                 </div>
               </div>
-              <div ref={mapRef} className="w-full h-40 rounded-xl overflow-hidden border border-border" />
+              <div ref={mapRef} className="w-2/3 h-40 rounded-xl overflow-hidden border border-border" />
             </div>
             <div className="flex items-start gap-3">
               <Clock size={16} className="text-primary mt-0.5 shrink-0" />

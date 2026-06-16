@@ -54,6 +54,7 @@ export async function manualEnrollApi(data: {
   children?: number;
   amount?: number;
   note?: string;
+  participants?: any[];
 }) {
   return api.post<Enrollment>('/admin/enrollments/manual', data);
 }

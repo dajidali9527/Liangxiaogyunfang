@@ -157,7 +157,7 @@ router.get('/enrollments', async (req: Request, res: Response) => {
 // POST /api/admin/enrollments/manual - 后台报名
 router.post('/enrollments/manual', async (req: Request, res: Response) => {
   try {
-    const { activityId, contactPhone, contactName, adults, children, amount, note } = req.body;
+    const { activityId, contactPhone, contactName, adults, children, amount, note, participants } = req.body;
     if (!activityId || !contactPhone) {
       res.status(400).json({ success: false, message: '活动ID和联系手机不能为空' });
       return;
@@ -197,7 +197,7 @@ router.post('/enrollments/manual', async (req: Request, res: Response) => {
         amount: amount || 0,
         note: note || '',
         adminNote: '管理员后台报名',
-        participants: [],
+        participants: participants || [],
       },
     });
     await prisma.activity.update({
