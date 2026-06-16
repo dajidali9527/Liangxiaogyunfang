@@ -42,11 +42,18 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
     if (!mapRef.current || !activity) return;
     const AMap = (window as any).AMap;
     if (!AMap) return;
+    const center = [119.074442, 26.772955];
     const map = new AMap.Map(mapRef.current, {
       zoom: 16,
-      center: [119.074442, 26.772955],
+      center,
       resizeEnable: true,
     });
+    const marker = new AMap.Marker({
+      position: center,
+      title: '龙潭村',
+      offset: new AMap.Pixel(-13, -30),
+    });
+    marker.setMap(map);
     return () => { map.destroy(); };
   }, [activity]);
 
@@ -98,7 +105,7 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
         </div>
 
         {/* Hero image / 海报轮播 */}
-        <div className="relative h-56 mt-3 overflow-hidden bg-muted">
+        <div className="relative h-72 mt-3 overflow-hidden bg-muted">
           <img src={allImages[currentImage]} alt={activity.name} className="w-full h-full object-cover transition-all duration-500" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
           {allImages.length > 1 && (

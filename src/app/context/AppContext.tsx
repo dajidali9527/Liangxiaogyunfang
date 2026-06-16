@@ -185,7 +185,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return res.data;
   }, []);
   const fetchStats = useCallback(async () => {
+    setBusy(true);
     const res = await getStatsApi();
+    setBusy(false);
     return res.data;
   }, []);
   const login = async (phoneOrUsername: string, password: string) => {

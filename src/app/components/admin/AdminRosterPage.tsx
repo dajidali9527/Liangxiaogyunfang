@@ -119,15 +119,15 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
   return (
     <AdminLayout>
       <div className="p-6 space-y-5 max-w-5xl">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <button onClick={() => navigate({ page: 'admin-activities' })} className="text-muted-foreground hover:text-foreground">
             <ArrowLeft size={18} />
           </button>
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <h1 className="text-foreground leading-tight">{activity.name}</h1>
             <p className="text-muted-foreground text-sm">{activity.startDate} · {activity.location}</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 w-full sm:w-auto">
             <button
               onClick={handleRefresh}
               disabled={refreshing}
@@ -249,7 +249,7 @@ export function AdminRosterPage({ activityId }: { activityId: string }) {
                   <span>·</span>
                   <span className="text-accent font-medium">¥{e.amount}</span>
                   <span>·</span>
-                  <span>报名 {e.enrolledAt.split(' ')[0]}</span>
+                  <span>报名 {e.enrolledAt ? new Date(e.enrolledAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(/\//g, '-') : ''}</span>
                 </div>
                 {e.participants && e.participants.length > 0 && (
                   <div className="mb-3 space-y-1.5">
