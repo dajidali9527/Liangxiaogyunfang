@@ -126,7 +126,7 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'Noto Sans SC', system-ui, sans-serif;
+    font-family: 'Microsoft YaHei', '微软雅黑', system-ui, sans-serif;
   }
 
   /**
