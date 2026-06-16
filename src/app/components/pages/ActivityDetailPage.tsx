@@ -283,7 +283,7 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
 
       {/* Enroll dialog - 匿名报名，不强制登录 */}
       {enrolling && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+        <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center">
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEnrolling(false)} />
           <div className="relative bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="p-6">
@@ -453,7 +453,7 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
 
       {/* 个人信息使用说明弹窗 */}
       {showPrivacy && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center">
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowPrivacy(false)} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm mx-4 p-6 shadow-2xl">
             <h3 className="text-foreground font-semibold mb-3">个人信息使用说明</h3>
