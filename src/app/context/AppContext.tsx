@@ -106,6 +106,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { document.body.style.cursor = busy ? 'wait' : ''; }, [busy]);
   const navigate = (r: Route) => {
     setRoute(r);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -165,10 +167,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
   const fetchAdminEnrollments = useCallback(async (activityId: string) => {
+    setBusy(true);
     const res = await getAdminEnrollmentsApi(activityId);
     if (res.success && res.data) {
       setEnrollments(res.data as Enrollment[]);
     }
+    setBusy(false);
   }, []);
   const fetchUsers = useCallback(async (search?: string) => {
     const res = await getUsersApi(search);
@@ -212,6 +216,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { success: false, message: res.message || '注册失败' };
   };
   const enroll = async (activityId: string, data: EnrollData) => {
+    setBusy(true);
     const res = await enrollApi({
       activityId,
       contactPhone: data.contactPhone,
@@ -224,6 +229,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (res.success && res.data) {
       setCurrentUser(mapAuthUserToAppUser(res.data.user));
       await fetchActivities();
+      setBusy(false);
       return {
         success: true,
         message: '报名成功！',
@@ -231,6 +237,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         password: res.data.password,
       };
     }
+    setBusy(false);
     return { success: false, message: res.message || '报名失败' };
   };
   const manualEnroll = async (activityId: string, data: ManualEnrollData) => {
@@ -272,10 +279,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
   const updateActivity = async (activityId: string, updates: Partial<Activity>) => {
+    setBusy(true);
     const res = await updateActivityApi(activityId, updates);
     if (res.success && res.data) {
       setActivities(prev => prev.map(a => a.id === activityId ? mapActivity(res.data!) : a));
     }
+    setBusy(false);
   };
   const updateUser = async (userId: string, updates: Partial<AppUser>) => {
     const res = await updateUserApi(userId, updates);
@@ -292,11 +301,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return { success: false, message: res.message || '删除失败' };
   };
   const addActivity = async (activity: Activity) => {
+    setBusy(true);
     const res = await createActivityApi(activity);
     if (res.success && res.data) {
       setActivities(prev => [mapActivity(res.data!), ...prev]);
+      setBusy(false);
       return { success: true, message: '创建成功' };
     }
+    setBusy(false);
     return { success: false, message: res.message || '创建失败' };
   };
   const deleteActivity = async (activityId: string) => {

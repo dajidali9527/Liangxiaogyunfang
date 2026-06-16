@@ -13,9 +13,11 @@ function LoginForm({ redirect }: { redirect?: Route }) {
 
   const handleLogin = async () => {
     setError('');
-    if (!phone || !password) { setError('请填写账号和密码'); return; }
+    const trimmedPhone = phone.trim();
+    const trimmedPwd = password.trim();
+    if (!trimmedPhone || !trimmedPwd) { setError('请填写账号和密码'); return; }
     setLoading(true);
-    const result = await login(phone, password);
+    const result = await login(trimmedPhone, trimmedPwd);
     setLoading(false);
     if (result.success) {
       navigate(redirect || { page: 'home' });
@@ -69,7 +71,9 @@ function LoginForm({ redirect }: { redirect?: Route }) {
       </button>
 
       <div className="bg-secondary rounded-xl p-3 text-xs text-muted-foreground space-y-1">
-        <p className="font-medium text-foreground/70">管理员账号</p>
+        <p className="font-medium text-foreground/70">用户账号：</p>
+        <p>报名活动会自动用手机号生成账号并登录系统，首页滑到底部→活动详情→立即报名</p>
+        <p className="font-medium text-foreground/70 mt-1">管理员账号：</p>
         <p>用户名：liangxiaoyunfang / 密码：admin123</p>
       </div>
     </div>
