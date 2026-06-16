@@ -153,7 +153,7 @@ export function ActivityDetailPage({ activityId }: { activityId: string }) {
                   <div className="text-sm text-foreground">{activity.location}</div>
                 </div>
               </div>
-              <div ref={mapRef} className="w-2/3 h-40 rounded-xl overflow-hidden border border-border" />
+              <div ref={mapRef} className="w-2/3 sm:w-full h-40 rounded-xl overflow-hidden border border-border mx-auto" />
             </div>
             <div className="flex items-start gap-3">
               <Clock size={16} className="text-primary mt-0.5 shrink-0" />
