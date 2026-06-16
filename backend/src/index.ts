@@ -34,8 +34,8 @@ const upload = multer({
   },
 });
 app.use(cors());
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ limit: '2mb', extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // 静态文件服务（本地开发时 Vite 代理 /uploads 到此处）
 app.use('/uploads', express.static(UPLOAD_ROOT));
 // 文件上传接口
