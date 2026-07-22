@@ -38,7 +38,7 @@ app.post('/api/upload', upload.array('files', 10), async (req: express.Request, 
   try {
     const form = new FormData();
     for (const f of files) {
-      form.append('files', new Blob([f.buffer]), f.originalname);
+      form.append('files', new Blob([new Uint8Array(f.buffer)], { type: f.mimetype }), f.originalname);
     }
     const resp = await fetch(FILE_SERVICE_URL, {
       method: 'POST',
