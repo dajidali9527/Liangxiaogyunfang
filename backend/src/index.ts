@@ -11,22 +11,12 @@ import adminRoutes from './routes/admin';
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001');
 const UPLOAD_ROOT = process.env.UPLOAD_DIR || path.resolve(__dirname, '../../../23zeroSoloDeploy/uploads');
-const UPLOAD_YUN = path.join(UPLOAD_ROOT, 'yun');
-// multer 配置
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    const fs = require('fs');
-    if (!fs.existsSync(UPLOAD_YUN)) fs.mkdirSync(UPLOAD_YUN, { recursive: true });
-    cb(null, UPLOAD_YUN);
-  },
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const name = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
-    cb(null, `${Date.now()}_${name}${ext}`);
-  },
-});
+// 统一文件服务对接（附件上传代理到 file.zerosolo.xyz）
+const FILE_SERVICE_URL = process.env.FILE_SERVICE_URL || 'https://file.zerosolo.xyz/api/upload';
+const FILE_SERVICE_TOKEN = process.env.FILE_SERVICE_TOKEN || 'fs_yun_2026';
+// multer 配置（memoryStorage 不落本地磁盘，转发到统一文件服务）
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith('image/')) cb(null, true);
@@ -36,17 +26,36 @@ const upload = multer({
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
-// 静态文件服务（本地开发时 Vite 代理 /uploads 到此处）
+// 静态文件服务（旧附件仍在 /uploads/yun/，本地开发与历史数据访问保留）
 app.use('/uploads', express.static(UPLOAD_ROOT));
-// 文件上传接口
-app.post('/api/upload', upload.array('files', 10), (req: express.Request, res: express.Response) => {
+// 文件上传接口（代理转发到统一文件服务，返回绝对 URL 数组，前端契约不变）
+app.post('/api/upload', upload.array('files', 10), async (req: express.Request, res: express.Response) => {
   const files = req.files as Express.Multer.File[];
   if (!files || files.length === 0) {
     res.status(400).json({ success: false, message: '未收到文件' });
     return;
   }
-  const urls = files.map(f => `/uploads/yun/${f.filename}`);
-  res.json({ success: true, data: urls });
+  try {
+    const form = new FormData();
+    for (const f of files) {
+      form.append('files', new Blob([f.buffer]), f.originalname);
+    }
+    const resp = await fetch(FILE_SERVICE_URL, {
+      method: 'POST',
+      headers: { 'X-File-Token': FILE_SERVICE_TOKEN },
+      body: form,
+    });
+    const json: any = await resp.json();
+    if (!resp.ok || !json.success) {
+      res.status(resp.status || 500).json({ success: false, message: json.message || '文件服务上传失败' });
+      return;
+    }
+    const urls: string[] = (json.data || []).map((d: any) => d.url);
+    res.json({ success: true, data: urls });
+  } catch (e) {
+    console.error('[upload] 转发文件服务失败:', (e as Error).message);
+    res.status(502).json({ success: false, message: '文件服务不可用' });
+  }
 });
 app.use('/api/auth', authRoutes);
 app.use('/api/activities', activityRoutes);
@@ -76,7 +85,7 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 });
 app.listen(PORT, () => {
   console.log(`[两小云房 API] running on port ${PORT}`);
-  console.log(`[Upload] 目录: ${UPLOAD_YUN}`);
+  console.log(`[FileService] ${FILE_SERVICE_URL}`);
   console.log(`[Routes] /api/auth /api/activities /api/enrollments /api/admin /api/upload`);
 });
 export default app;
